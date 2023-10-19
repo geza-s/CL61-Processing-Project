@@ -144,7 +144,7 @@ class CL61Processor:
         """
         # Implement classification logic
         classification_result_array = classification.K_means_classifier(dataset=self.dataset, cluster_N=cluster_number,
-                                                                        variable_names=variable_as_features)
+                                                                        variable_as_features=variable_as_features)
         
         self.dataset['kmean_classified'] = xr.DataArray(data=classification_result_array.T, dims=['time', 'range'])
         
@@ -176,18 +176,39 @@ class CL61Processor:
                                             plot_colors = ['#124E63', '#F6A895'])
         return
 
-    def compare_profiles(self, time_period = None,
+    def compare_profiles(self, comparison = 'variable', time_period = None,
                           var_names_1 = ['beta_att', 'linear_depol_ratio', 'range'],
                           var_names_2 = ['beta_att_clean', 'linear_depol_ratio_clean', 'range'],
                           hlims = [0,15000]):
-        
+        '''
+        Creates 2 subplots to compare side by side vertical profiles of beta attenuation and linear depolarisation ratio.
+
+        Args:
+            time_period (str or list of str): time element-s of interest. Expected to be a single str if comparison is not 'time',
+              else should be a list of 2 time elements (str) to compare. 
+            var_names_1 (list): list of the variables names setting the vertical profiles
+            var_names_2 (list): list of the variables names for 2nd profiles for comparison if comparison is 'variable'
+        '''
         fig, axs = plt.subplots(1, 2, figsize=(10,6))
-        axs[0], ax_twin = visualization.plotVerticalProfiles(dataset=self.dataset, time_period=time_period,
-                                                     var_names=var_names_1, ax=axs[0],
-                                                     hlims=hlims)
-        axs[1], ax_twin = visualization.plotVerticalProfiles(dataset=self.dataset, time_period=time_period,
-                                                     var_names=var_names_2, ax=axs[1],
-                                                     hlims=hlims)
+        if comparison == 'variable':
+            axs[0], ax_twin = visualization.plotVerticalProfiles(dataset=self.dataset, time_period=time_period,
+                                                        var_names=var_names_1, ax=axs[0],
+                                                        hlims=hlims)
+            axs[1], ax_twin = visualization.plotVerticalProfiles(dataset=self.dataset, time_period=time_period,
+                                                        var_names=var_names_2, ax=axs[1],
+                                                        hlims=hlims)
+        elif comparison == 'time':
+            if type(time_period) != list:
+                raise TypeError('If vertical profile comparison in time, time_period is expected be a list of 2 time strings')
+            
+            axs[0], ax_twin = visualization.plotVerticalProfiles(dataset=self.dataset, time_period=time_period[0],
+                                                        var_names=var_names_1, ax=axs[0],
+                                                        hlims=hlims)
+            axs[1], ax_twin = visualization.plotVerticalProfiles(dataset=self.dataset, time_period=time_period[2],
+                                                        var_names=var_names_1, ax=axs[1],
+                                                        hlims=hlims)
+        else:
+            raise ValueError("'comparison' is expected to be 'variable' or 'time'")
         plt.show()
         
         return axs
