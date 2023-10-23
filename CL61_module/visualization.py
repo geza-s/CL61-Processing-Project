@@ -1,6 +1,5 @@
 #array management
 import numpy as np
-import xarray as xr
 import pandas as pd
 
 #Basic plots
@@ -13,10 +12,12 @@ import cmcrameri.cm as cmc
 
 #improved large data visualization
 import datashader as ds
-from datashader import transfer_functions as tf, reductions as rd
+from datashader import transfer_functions as tf
 
+from .classification_vizalization import *
 
-COLOR_MAP_DEFAUT = 'cmc.batlow'
+COLOR_MAP_NAME = 'cmc.batlow'
+COLOR_MAP = cmc.batlow # type: ignore
 
 BATLOW_7COLORS  = [{"name":"Fairy Tale","hex":"FBC5E6","rgb":[251,197,230],"cmyk":[0,22,8,2],"hsb":[323,22,98],"hsl":[323,87,88],"lab":[85,24,-9]},
                    {"name":"Olive","hex":"88842B","rgb":[136,132,43],"cmyk":[0,3,68,47],"hsb":[57,68,53],"hsl":[57,52,35],"lab":[54,-10,47]},
@@ -205,7 +206,6 @@ def plotVerticalProfiles(dataset, time_period = None,
     # Add a legend
     #ax1.legend(loc='upper right')
     #ax2.legend(loc='upper right')
-
     # set_title:
     plt.title(title)
 
@@ -220,13 +220,13 @@ def plotVerticalProfiles(dataset, time_period = None,
 
 
 def plot_classifiction_result(dataset, classified_var_name = 'classified',
-                              colormap = COLOR_MAP_DEFAUT):
+                              colormap = COLOR_MAP_NAME):
 
     # Define the original colormap (e.g., 'viridis')
     original_cmap = plt.get_cmap(colormap)
 
     # Define the number of discrete categories
-    num_categories = dataset['classified'].unique().size  # Adjust as needed
+    num_categories = len(np.unique(dataset[classified_var_name]))  # Adjust as needed
 
     # Create a list of evenly spaced values to sample the colormap
     color_values = np.linspace(0, 1, num_categories)

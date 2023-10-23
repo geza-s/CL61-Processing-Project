@@ -31,11 +31,13 @@ from CL61_module import noise_processing
 from CL61_module import classification
 
 plt.style.use('bmh')
-COLOR_MAP = 'cmc.batlow'
+COLOR_MAP_NAME = 'cmc.batlow'
+COLOR_MAP = cmc.batlow # type: ignore
 
 class CL61Processor:
     def __init__(self, folder_path, start_datetime=None, end_datetime=None, specific_filename = None):
         self.folder_path = folder_path
+        self.classification_config = classification.load_config('../CL61_module/config_classification.yml')
 
         if specific_filename:
             specific_filepath = os.path.join(folder_path, specific_filename)
@@ -134,25 +136,57 @@ class CL61Processor:
         return
     
     
-    def classify_data_kmean(self, variable_as_features=['beta_att_clean', 'linear_depol_ratio_clean'],
-                            cluster_number = 8, plot_result = True):
+    def perform_kmeans_clustering(self, variable_as_features=['beta_att', 'linear_depol_ratio'], weights=None,
+                                cluster_number=8, plot_result=True, kmean_method='k-means++'):
         """
-        Perform data classification by k-means.
+        Perform k-means clustering on the dataset.
+
+        Parameters:
+        - variable_as_features: List of variable names to use as features (default: ['beta_att', 'linear_depol_ratio']).
+        - weights: List of weights for feature columns (default: None).
+        - cluster_number: The number of clusters (default: 8).
+        - plot_result: If True, visualize the results (default: True).
+        - kmean_method: The K-means initialization method (default: 'k-means++').
 
         Returns:
-            None
+        - None
         """
+
         # Implement classification logic
-        classification_result_array = classification.K_means_classifier(dataset=self.dataset, cluster_N=cluster_number,
-                                                                        variable_as_features=variable_as_features)
-        
-        self.dataset['kmean_classified'] = xr.DataArray(data=classification_result_array.T, dims=['time', 'range'])
-        
-        if plot_result:
-            visualization.plot_classifiction_result(dataset=self.dataset, classified_var_name = 'kmean_classified')
-        
+        classification_result_array = classification.K_means_classifier(
+            dataset=self.dataset,
+            variable_as_features=variable_as_features,
+            weights=weights,
+            cluster_N=cluster_number,
+            plot_result=plot_result,
+            kmean_method=kmean_method
+        )
+
+        self.dataset['kmean_clusters'] = xr.DataArray(data=classification_result_array.T, dims=['time', 'range'])
         return
-        
+
+    def classify_clusters(self,
+                         cluster_variable = 'kmean_clusters'):
+        '''
+        Classifies each cluster of cluster_variable array based on determined thresholds
+        '''
+        class_results, new_class_xarray = classification.threshold_classify_clusters(dataset=self.dataset,
+                                                                                                   cluster_variable=cluster_variable)
+        self.dataset['classified_clusters'] = new_class_xarray
+        self.cluster_class_map = class_results
+        return
+
+
+    def plot_classes_colormesh(self, 
+                               variable_classified = 'classified_clusters'):
+        '''
+        Plot classification result in a colormesh 2D plot
+        '''
+        visualization.plot_classified_colormesh(self.dataset[variable_classified].T,
+                                                 self.dataset['time'],
+                                                 self.dataset['range'])
+        return
+
     def vertical_profiles(self, time_of_interest = None,
                           var_names = ['beta_att', 'linear_depol_ratio', 'range'],
                           hlims = [0, 15000],
