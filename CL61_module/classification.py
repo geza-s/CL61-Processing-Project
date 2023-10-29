@@ -83,27 +83,32 @@ def threshold_classify_clusters(dataset,
     
     return classification_results, new_classified_array
 
-def classify_array(beta_attenuation, depolarization):
+def classify_dataset(dataset,
+                      variable_names = ['beta_att_clean','lin_depol_ratio_clean']):
     '''
     Classify based on thresholds directly the whole array elements per elements
+    Parameters:
+    dataset :
     '''
     # Check for classification config data
     config_classification = load_config()
     log10_beta_attenuation_thresholds = config_classification['log10_beta_attenuation_thresholds']
     linear_depolarization_thresholds = config_classification['linear_depolarization_thresholds']
 
+    # get directly the arrays to classifiy
+    beta_attenuation_array = dataset[variable_names[0]]
+    lin_depol_array = dataset[variable_names[1]]
+    
     # Classify based on beta attenuation
-    calssified_result_label = np.empty(beta_attenuation.shape)
+    calssified_result_label = xr.full_like(beta_attenuation_array, np.nan, dtype=np.double)
     for label, (min_value, max_value) in log10_beta_attenuation_thresholds.items():
-        mask = (10**min_value <= beta_attenuation) & (beta_attenuation <= 10**max_value)
-        calssified_result_label[mask] = label
+        mask = (10**min_value <= beta_attenuation_array) & (beta_attenuation_array <= 10**max_value)
+        calssified_result_label = xr.where(mask, label, calssified_result_label)
 
     # Classify based on depolarization
     for label, (min_value, max_value) in linear_depolarization_thresholds.items():
-        mask = (min_value <= depolarization) & (depolarization <= max_value)
-        calssified_result_label[mask] += label
-
-    calssified_result_label[np.isnan(beta_attenuation)] = np.nan
+        mask = (min_value <= lin_depol_array) & (lin_depol_array <= max_value)
+        calssified_result_label = xr.where(mask, calssified_result_label+label, calssified_result_label)
 
     return calssified_result_label
 

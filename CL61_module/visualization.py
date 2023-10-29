@@ -12,6 +12,7 @@ import cmcrameri.cm as cmc
 
 #improved large data visualization
 import datashader as ds
+from datashader.mpl_ext import dsshow #for matplotlib integration
 from datashader import transfer_functions as tf
 
 from .classification_vizalization import *
@@ -35,7 +36,7 @@ def plotCL61AsColomersh(dataset, variable_names=['beta_att', 'linear_depol_ratio
                         min_value=1e-7,
                         max_value=1e-4,
                         hlims=False,
-                        color_map = 'Spectral_r',
+                        color_map = COLOR_MAP_NAME,
                         scales = ['log', 'linear'],):
     
     x = dataset[time_var].values
@@ -83,6 +84,46 @@ def plotCL61AsColomersh(dataset, variable_names=['beta_att', 'linear_depol_ratio
 
 
     plt.show()
+    return
+
+def plotCL61AsColomersh_ds(dataset, variable_names=['beta_att', 'linear_depol_ratio'],
+                        time_var = 'time',
+                        range_var = 'range',
+                        min_value=1e-7,
+                        max_value=1e-4,
+                        hlims=False,
+                        color_map = COLOR_MAP_NAME,
+                        scales = ['log', 'linear'],):
+    
+    #cvs = ds.Canvas(plot_width=500, plot_height=500)
+    if (ax==None) | (fig==None): 
+        fig, ax = plt.subplots(1,1, figsize=(10, 10))
+
+    # Define the original colormap (e.g., 'viridis')
+    original_cmap = plt.get_cmap(color_map)
+
+    # Define the number of discrete categories
+    num_categories = np.unique(df['cluster_labels']).size  # Adjust as needed
+
+    # Create a list of evenly spaced values to sample the colormap
+    color_values = np.linspace(0, 1, num_categories)
+
+    # Sample the original colormap at the specified values
+    discrete_colors = original_cmap(color_values)
+
+    # Create a custom ListedColormap with the discrete colors
+    discrete_cmap = ListedColormap(discrete_colors)
+    
+    artist0 = dsshow(dataset, tf.shade('log10_beta_att', 'linear_depol'), ds.mean('cluster_labels'),
+                      ax=ax, cmap = discrete_cmap)
+    
+    #agg = cvs.points(df, 'log10_Beta_att', 'Linear_depol', ds.mean('Cluster_Labels'))
+    if (ax==None) | (fig==None): 
+        fig.colorbar(artist0, ax=ax, orientation='vertical')
+    ax.set_title('Feature space clustering')
+    ax.set_xlabel('log10 beta attenuation')
+    ax.set_ylabel('linear depolarisation')
+    
     return
 
 def plotCl61asProfile(dataset, time_period = None, variable='beta_att', hlims = False, color_map = 'Spectral_r'):

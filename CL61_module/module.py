@@ -7,16 +7,13 @@ import importlib
 # Array
 import xarray as xr
 import numpy as np
-import datetime as dt
 import pandas as pd
 
 # Visualize
 from matplotlib import pyplot as plt
-import matplotlib.dates as mdates
-import matplotlib.colors as colors
 import cmcrameri.cm as cmc  # batlow colourmap
 
-# Signal processing
+# Signal processing (check if necessary)
 from scipy import signal
 from scipy.interpolate import BSpline
 
@@ -36,8 +33,13 @@ COLOR_MAP = cmc.batlow # type: ignore
 
 class CL61Processor:
     def __init__(self, folder_path, start_datetime=None, end_datetime=None, specific_filename = None):
+        # Path to the data folder
         self.folder_path = folder_path
-        self.classification_config = classification.load_config('../CL61_module/config_classification.yml')
+        # Directory to the module folder 
+        self.module_dir = os.path.dirname(__file__)
+        # Open config file
+        config_path = os.path.join(self.module_dir, 'config_classification.yml')
+        self.classification_config = classification.load_config(config_path)
 
         if specific_filename:
             specific_filepath = os.path.join(folder_path, specific_filename)
@@ -172,10 +174,21 @@ class CL61Processor:
         '''
         class_results, new_class_xarray = classification.threshold_classify_clusters(dataset=self.dataset,
                                                                                                    cluster_variable=cluster_variable)
-        self.dataset['classified_clusters'] = new_class_xarray
+        classified_cluster_var_name = 'classified_clusters'
+        self.dataset[classified_cluster_var_name] = new_class_xarray
         self.cluster_class_map = class_results
+        print(f" Successful cluster classification stored in dataset under {classified_cluster_var_name}")
         return
 
+    def classify_elementwise(self,
+                             variable_names = ['beta_att_clean', 'linear_depol_ratio_clean']):
+        '''
+        Classifies directly element wise based on thresholds focused on the variables in question
+        '''
+        new_var_name = 'classified_elements'
+        self.dataset[new_var_name] = classification.classify_dataset(self.dataset, variable_names = variable_names)
+        print(f" Successful pixel-wise classification stored in dataset under {new_var_name}")
+        return
 
     def plot_classes_colormesh(self, 
                                variable_classified = 'classified_clusters'):
@@ -210,7 +223,7 @@ class CL61Processor:
                                             plot_colors = ['#124E63', '#F6A895'])
         return
 
-    def compare_profiles(self, comparison = 'variable', time_period = None,
+    def compare_profiles(self, time_period = None, comparison = 'variable',
                           var_names_1 = ['beta_att', 'linear_depol_ratio', 'range'],
                           var_names_2 = ['beta_att_clean', 'linear_depol_ratio_clean', 'range'],
                           hlims = [0,15000]):
