@@ -144,7 +144,7 @@ def rolling_window_in_range_mask(dataset,
     return mask_in_range
     
 
-def non_null_windows_mask(dataset, variable_name, window_size, analysis_type = 'non-negative', range=[0,1]):
+def non_null_windows_mask_old(dataset, variable_name, window_size, analysis_type = 'non-negative', range=[0,1]):
     '''
     Checks not only if moving window around element (i.j) has only positive values
     but if the upper/lower/Right/Left windows are non negative also
@@ -179,7 +179,7 @@ def non_null_windows_mask(dataset, variable_name, window_size, analysis_type = '
     
     return non_null_mask
 
-def non_noise_windows_mask_v2(dataset, variable_name, window_size, analysis_type = 'non-negative', value_range=[0,1]):
+def non_noise_windows_mask(dataset, variable_name, window_size, analysis_type = 'non-negative', value_range=[0,1]):
     '''
     Checks not only if moving window around element (i.j) has only positive values
     but if the upper/lower/Right/Left windows are non negative also

@@ -1,3 +1,5 @@
+import os
+
 import numpy as np
 import xarray as xr
 import yaml
@@ -10,7 +12,7 @@ import cmcrameri.cm as cmc
 
 # Needed elements
 from .classification_vizalization import visualize_classification_featurespace_2D, visualize_Kmean_results
-from .utils import load_config
+from .utils import load_config, filename_to_save
 
 # global variables
 COLOR_MAP_NAME = 'cmc.batlow'
@@ -115,6 +117,13 @@ def classify_dataset(dataset,
 def dataset_to_sample_feature(dataset,
                                variable_names=['beta_att_clean', 'linear_depol_ratio_clean', 'range'],
                                transforms=['log', 'lin', 'lin']):
+    '''
+    Converts variables in xarray dataset of dimension 'time' and 'range' into 1D timeXrange arrays.
+    Args:
+        - dataset: xarray dataset of dimensions 'time' and 'range
+        - variable_names: variables of dataset to extract
+        - transforms: Transformation to apply directly when extracted: can be 'log' or else = None
+    '''
     # Create an empty list to store transformed feature arrays
     feature_arrays = []
     array_size = dataset['time'].size*dataset['range'].size
@@ -150,8 +159,9 @@ def K_means_classifier(dataset, cluster_N = 8,
                        variable_as_features=['beta_att_clean', 'linear_depol_ratio_clean', 'range'],
                        transforms=['log', 'lin', 'lin'],
                        weights = [1,1,0.5],
+                       kmean_method = 'k-means++',
                        plot_result = True,
-                       kmean_method = 'k-means++'):
+                       save_fig = True):
     '''
     Implementation of k-mean classification on data from CL61 ceilometer.
     Visualization of results can be called with "plot_result=True".
@@ -214,5 +224,8 @@ def K_means_classifier(dataset, cluster_N = 8,
                                                num_categories=cluster_N,
                                                fig = fig,
                                                ax = axes[1])
+        if save_fig:
+            plt.savefig(filename_to_save(dataset, save_fig))
+                
         plt.show()
     return original_shape_labels_array

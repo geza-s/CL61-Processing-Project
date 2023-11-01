@@ -51,7 +51,7 @@ def visualize_classification_featurespace_2D(feature1_flatten,
     original_cmap = plt.get_cmap(COLOR_MAP_NAME)
 
     # Define the number of discrete categories
-    num_categories = np.unique(df['cluster_labels']).size  # Adjust as needed
+    num_categories = np.unique(df['cluster_labels']).size
 
     # Create a list of evenly spaced values to sample the colormap
     color_values = np.linspace(0, 1, num_categories)
@@ -64,24 +64,14 @@ def visualize_classification_featurespace_2D(feature1_flatten,
     
     artist0 = dsshow(df, ds.Point('log10_beta_att', 'linear_depol'), ds.mean('cluster_labels'),
                       ax=ax, cmap = discrete_cmap)
-    #agg = cvs.points(df, 'log10_Beta_att', 'Linear_depol', ds.mean('Cluster_Labels'))
+    
     if (ax==None) | (fig==None): 
         fig.colorbar(artist0, ax=ax, orientation='vertical')
     ax.set_title('Feature space clustering')
     ax.set_xlabel('log10 beta attenuation')
     ax.set_ylabel('linear depolarisation')
-    # Use the color map you defined earlier
-    #colors_rgb = ()
-    #color_key = dict(enumerate(colors_rgb))
 
-    # Create a custom colormap in a format that Datashader can use
-    #cmap = tf.color_map(builders=[colors_rgb.tolist()], name="custom_cmap")
-
-    #img = tf.shade(agg, cmap=COLOR_MAP)
-
-    # Display the plot
-    #tf.set_background(img, 'black')
-
+    
     if (ax==None) | (fig==None): 
         plt.show()
 
