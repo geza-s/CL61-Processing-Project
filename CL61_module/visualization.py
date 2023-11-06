@@ -47,7 +47,8 @@ def histogram1d(dataset,
                 var_transform='log',
                 count_log=False,
                 use_matplotlib=False,
-                save_fig=True,
+                save_fig=False,
+                fig_dpi = 300,
                 cmap=COLOR_MAP,
                 **kwargs):
     """
@@ -129,7 +130,7 @@ def histogram1d(dataset,
         plt.ylabel('Count (log scale)' if count_log else 'Count')
 
     if save_fig:
-        plt.savefig(filename_to_save(dataset, save_fig, suffix=f'hist_{variable_name}'))
+        plt.savefig(filename_to_save(dataset, save_fig, suffix=f'hist_{variable_name}'), dpi = fig_dpi)
 
     plt.show()
     return
@@ -142,7 +143,8 @@ def histogram2d(dataset,
                 count_tf='log',
                 min_count_per_bin=2,
                 cmap=COLOR_MAP,
-                save_fig = True):
+                save_fig = False,
+                fig_dpi = 300):
     """
     Plots the 2D histogram for given variables
 
@@ -190,36 +192,36 @@ def histogram2d(dataset,
     if save_fig:
         filepath = filename_to_save(dataset, save_fig, suffix='hist2D')
         print(f'saved element to {filepath}')
-        plt.savefig(filepath, bbox_inches='tight')
+        plt.savefig(filepath, bbox_inches='tight', dpi=fig_dpi)
 
     return g
 
 
-def plotCL61AsColomersh(dataset, variable_names=['beta_att', 'linear_depol_ratio'],
-                        time_var='time',
-                        range_var='range',
+def plot_cl61_as_colormesh(dataset, variable_names=['beta_att', 'linear_depol_ratio'],
                         min_value=1e-7,
                         max_value=1e-4,
-                        range_limits=False,
+                        range_limits=None,
                         color_map=COLOR_MAP_NAME,
-                        scales=['log', 'linear']):
+                        scales=['log', 'linear'],
+                        time_var='time',
+                        range_var='range',
+                        save_fig = False,
+                        fig_dpi = 300,
+                        **kwargs):
     """
+    Plot CL61 data as a colormesh.
 
-    Parameters
-    ----------
-    dataset
-    variable_names
-    time_var
-    range_var
-    min_value
-    max_value
-    range_limits
-    color_map
-    scales
-
-    Returns
-    -------
-
+    Args:
+        dataset (_type_): The dataset to be plotted.
+        variable_names (list, optional): Names of the variables to be plotted.. Defaults to ['beta_att', 'linear_depol_ratio'].
+        min_value (_type_, optional):Minimum value for the color scale.. Defaults to 1e-7.
+        max_value (_type_, optional): Maximum value for the color scale.. Defaults to 1e-4.
+        range_limits (int or list , optional): max_range or [min_range, max_range] for the y-axis (optional upper limit).. Defaults to None.
+        color_map (_type_, optional): Matplotlib colormap name. (Default see file).
+        scales (list, optional): to specify the color scales. Defaults to ['log', 'linear'].
+        time_var (str, optional): Name of the time variable. Defaults to 'time'.
+        range_var (str, optional): Name of the range variable. Defaults to 'range'.
+        save_fig (bool, optional): Set to True if you want to save the figure. Defaults to True.
     """
     x = dataset[time_var].values
     h = np.round(dataset[range_var].values)
@@ -230,19 +232,23 @@ def plotCL61AsColomersh(dataset, variable_names=['beta_att', 'linear_depol_ratio
 
     lims = [np.max([np.nanmin(back_att_arr), min_value]), np.min([np.nanmax(back_att_arr), max_value])]
 
-    if range_limits:
-        if len(range_limits) < 2:
-            range_limits = [0, range_limits]
-        elif len(range_limits) > 2:
+    if isinstance(range_limits, int):
+        range_limits = [0, range_limits]
+    elif isinstance(range_limits, list):
+        if len(range_limits) == 1:
+            range_limits = [0, range_limits[-1]]
+        if len(range_limits) > 2:
             print('Did not expect range_limits length > 2 ; taking first 2 values')
             range_limits = range_limits[:2]
     else:
         range_limits = [0, 15000]
+    
     if scales[0] == 'log':
         cax = ax.pcolormesh(x, h, back_att_arr, axes=ax, shading='nearest', cmap=color_map,
                             norm=colors.LogNorm(vmin=lims[0], vmax=lims[1]))
     else:
         cax = ax.pcolormesh(x, h, back_att_arr, axes=ax, shading='nearest', cmap=color_map, vmin=0, vmax=1)
+    
     cbar = fig.colorbar(cax)
     cbar.ax.get_yaxis().labelpad = 15
     cbar.ax.set_ylabel(rf'{variable_names[0]}', rotation=90)
@@ -259,22 +265,30 @@ def plotCL61AsColomersh(dataset, variable_names=['beta_att', 'linear_depol_ratio
     cbar = fig.colorbar(cax2)
     cbar.ax.get_yaxis().labelpad = 15
     cbar.ax.set_ylabel(rf'{variable_names[1]}', rotation=90)
+    
     ax2.set_ylabel('Range (m)')
     ax2.set_xlabel('time')
     ax2.set_ylim(range_limits)
 
+    ax2.set_xticklabels(ax2.get_xticklabels(), rotation=30, ha='right')
+
+    if save_fig:
+        filepath = filename_to_save(dataset, save_fig, suffix='colormesh')
+        print(f'saved element to {filepath}')
+        plt.savefig(filepath, bbox_inches='tight', dpi=fig_dpi)
+    
     plt.show()
     return
 
 
-def plotCL61AsColomersh_ds(dataset, variable_names=['beta_att', 'linear_depol_ratio'],
-                           time_var='time',
-                           range_var='range',
+def plot_cl61_as_colormesh_ds(dataset, variable_names=['beta_att', 'linear_depol_ratio'],
                            min_value=1e-7,
                            max_value=1e-4,
                            range_limits=False,
                            color_map=COLOR_MAP_NAME,
                            scales=['log', 'linear'],
+                           time_var='time',
+                           range_var='range',
                            ax = None,
                            fig = None):
     '''
@@ -307,7 +321,7 @@ def plotCL61AsColomersh_ds(dataset, variable_names=['beta_att', 'linear_depol_ra
     if (ax == None) | (fig == None):
         fig.colorbar(artist0, ax=ax, orientation='vertical')
     ax.set_title('Feature space clustering')
-    ax.set_xlabel('log10 beta attenuation')
+    ax.set_xlabel('log10 beta attenuation (m-1 sr-1)')
     ax.set_ylabel('linear depolarisation')
 
     return
@@ -380,15 +394,40 @@ def plotVerticalProfiles(dataset, time_period=None,
                          xlabel1='Beta attenuation',
                          xlabel2='linear depol ratio',
                          ylabel='range [m]',
-                         title='CL61 profiles',
+                         title= None,
                          var_xlims=[[1e-7, 1e-4],
                                     [0, 1]],
                          x_scales=['log', 'linear'],
                          plot_colors=['#124E63', '#F6A895'],
-                         ax=None):
-    '''
+                         ax=None,
+                         save_fig=False,
+                         fig_dpi=300):
+    """
     Plot profiles of beta attenuation and depolarization ratio respect to height (range).
-    '''
+
+    Args:
+        dataset (xarray dataset): dataset containing CL61 raw data
+        time_period (str or list, optional): string or list of 2 datetime strings following the format "year-month-day hour:min:sec" . Defaults to None.
+        var_names (list, optional): variable names. Defaults to ['beta_att', 'linear_depol_ratio'].
+        range_limits (list, optional): limit of heights to plot. Defaults to [0, 15000].
+        xlabel1 (str, optional): to change the xlabel description of variable 1. Defaults to 'Beta attenuation'.
+        xlabel2 (str, optional): to change the xlabel description of variable 2. Defaults to 'linear depol ratio'.
+        ylabel (str, optional): to change the xlabel description of height variable. Defaults to 'range [m]'.
+        title (str, optional): to change the title. Defaults to 'CL61 profiles'.
+        var_xlims (list, optional): _description_. Defaults to [[1e-7, 1e-4], [0, 1]].
+        x_scales (list, optional): _description_. Defaults to ['log', 'linear'].
+        plot_colors (list, optional): _description_. Defaults to ['#124E63', '#F6A895'].
+        ax (_type_, optional): _description_. Defaults to None.
+        save_fig (bool, optional): _description_. Defaults to True.
+        fig_dpi (int, optional): _description_. Defaults to 300.
+
+    Raises:
+        ValueError: _description_
+        TypeError: _description_
+
+    Returns:
+        _type_: _description_
+    """
     # Get time period wished
     if time_period:
         if isinstance(time_period, str):
@@ -434,12 +473,21 @@ def plotVerticalProfiles(dataset, time_period=None,
     # Add a legend
     # ax1.legend(loc='upper right')
     # ax2.legend(loc='upper right')
+    
     # set_title:
-    plt.title(title)
-
+    if title:
+        plt.title(title)
+    else:
+        plt.title(f'CL61 profiles - {time_period}')
+        
     # set height limits
     plt.ylim(range_limits)
 
+    if save_fig:
+        filepath = filename_to_save(dataset, save_fig, suffix='vprofile')
+        print(f'saved element to {filepath}')
+        plt.savefig(filepath, bbox_inches='tight', dpi=fig_dpi)
+    
     # Show the plot
     if ax == None:
         plt.show()

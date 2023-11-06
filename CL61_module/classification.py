@@ -211,13 +211,13 @@ def K_means_classifier(dataset, cluster_N = 8,
     original_shape_labels_array = full_shape_labels.reshape(dataset['beta_att_clean'].T.shape)
 
     if plot_result:
-        fig, axes = plt.subplots(1,2,figsize = (15,5), width_ratios=[1, 2])
-        fig, axes[0] = visualize_classification_featurespace_2D(feature1_flatten=feature_matrix_standardized[:,0],
-                                                 feature2_flatten=feature_matrix_standardized[:,1],
-                                                 cluster_labels=cluster_labels,
-                                                 cluster_N=cluster_N,
-                                                 fig = fig,
-                                                 ax = axes[0])
+        fig, axes = plt.subplots(1,2, figsize = (15,5), width_ratios=[1, 2])
+        fig, axes[0] = visualize_classification_featurespace_2D(feature1_name='log10_beta_attenuation', feature1_flatten=cleaned_feature_matrix[:,0],
+                                                                feature2_name='linear_depolarisation_ratio', feature2_flatten=cleaned_feature_matrix[:,1],
+                                                                cluster_labels_flatten=cluster_labels,
+                                                                fig = fig,
+                                                                plot_cbar=False,
+                                                                ax = axes[0])
         
         fig, axes[1] = visualize_Kmean_results(dataset,
                                                original_shape_labels_array,

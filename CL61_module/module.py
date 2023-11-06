@@ -25,6 +25,7 @@ import seaborn as sns
 from CL61_module import visualization
 from CL61_module import noise_processing
 from CL61_module import classification
+from .utils import filename_to_save
 
 plt.style.use('bmh')
 COLOR_MAP_NAME = 'cmc.batlow'
@@ -117,13 +118,32 @@ class CL61Processor:
 
         return df_data_files
 
-    def load_netcdf4_data_in_timeperiod(self):
-        '''
-        Load the netcdf4 files in the folder and inside the given period
-        '''
-        # selected_data = self.file_time_mapping[self.file_time_mapping['Datetime'].between(self.period_start, self.period_end)]
-        selected_data = self.file_time_mapping.loc[self.period_start:self.period_end]
-        return xr.open_mfdataset(selected_data['file_name_path'], chunks={'time': 300})
+    def load_netcdf4_data_in_timeperiod(self, parrallel_computing = False):
+        """
+        Load the netcdf4 files at given folder location and inside the given period.
+
+        Args:
+            parrallel_computing (bool, optional): If dask is installed, open_mfdataset can increase in some case performance. Defaults to False.
+
+        Returns:
+            _type_: _description_
+        """
+        # Select all files in folder referering to wished period
+        selected_filemaps = self.file_time_mapping.loc[self.period_start:self.period_end]
+        
+        if parrallel_computing:
+            return xr.open_mfdataset(selected_filemaps['file_name_path'], chunks={'time': 300})
+        else:
+            combined_dataset = None
+            for row in tqdm(selected_filemaps.iterrows(), total=selected_filemaps.shape[0]):
+                # Open file alone to xarray
+                row_array = xr.open_dataset(row[1]['file_name_path'], chunks='auto')
+                # Combine the datasets
+                if combined_dataset is None:
+                    combined_dataset = row_array
+                else:
+                    combined_dataset = xr.concat([combined_dataset, row_array], dim='time')
+            return combined_dataset
 
     def get_subset(self, start_time, end_time):
         """
@@ -149,6 +169,7 @@ class CL61Processor:
                                          start_datetime=start_time,
                                          end_datetime=end_time,
                                          config_path=self.config_filepath)
+        
         subset_processor.dataset = subset
         subset_processor.period_start = start_time
         subset_processor.period_end = end_time
@@ -275,48 +296,51 @@ class Plot:
     def __init__(self, parent: CL61Processor):
         self.CL61_parent = parent
 
-    def visualize_data(self, plot_type='profile',
+    def colormesh(self,
                        time_period=None,
                        varriable_names=['beta_att', 'linear_depol_ratio'],
                        range_limits=[0, 5000],
-                       value_limits=[1e-9, 1e-3]):
+                       value_limits=[1e-9, 1e-3],
+                       save_fig = False,
+                       **plt_kwargs):
         """
-        Visualize the processed data.
+        Plots variable(s) in dataset as colormesh
 
         Args:
-            plot_type (str): Type of plot to generate ('profile', 'colormesh')
+            time_period (list, optional): time period to plot only a subset. Defaults to None.
+            varriable_names (list, optional): _description_. Defaults to ['beta_att', 'linear_depol_ratio'].
+            range_limits (list, optional): _description_. Defaults to [0, 5000].
+            value_limits (list, optional): _description_. Defaults to [1e-9, 1e-3].
+            save_fig (bool or str, optional): set to True if figure should be saved automatically, else str of file name
+
+        Raises:
+            ValueError: _description_
 
         Returns:
-            None
+            _type_: _description_
         """
         dataset = self.CL61_parent.dataset
 
         if dataset is None:
             raise ValueError("No Data has been loaded yet.")
 
-        if time_period:
-            if type(time_period) == str:
-                subset = dataset.sel(time=time_period, method="nearest")
-            elif type(time_period) == list:
-                if len(time_period) > 2:
-                    print(f"Expected max 2 values (start time/date, end time/date) but got {len(time_period)}")
-                    return 0
-                else:
-                    subset = dataset.sel(time=slice(time_period[0], time_period[1]))
+        if isinstance(time_period, list):
+            if len(time_period) != 2:
+                print(f"Expected 2 values (start time/date, end time/date) but got {len(time_period)}")
+                return 0
+            else:
+                subset = dataset.sel(time=slice(time_period[0], time_period[1]))
         else:
             subset = dataset
 
-        if plot_type == 'profile':
-            visualization.plotCl61asProfile(subset, time_period=None,
-                                            variable=varriable_names, range_limits=range_limits,
-                                            color_map=COLOR_MAP)
-        elif plot_type == 'colormesh':
-            visualization.plotCL61AsColomersh(subset, variable_names=varriable_names,
-                                              range_limits=range_limits,
-                                              min_value=value_limits[0], max_value=value_limits[1],
-                                              color_map=COLOR_MAP)
-        else:
-            raise ValueError(f"Unsupported plot type: {plot_type}")
+
+        visualization.plot_cl61_as_colormesh(subset,
+                                          variable_names=varriable_names,
+                                          range_limits=range_limits,
+                                          min_value=value_limits[0], max_value=value_limits[1],
+                                          color_map=COLOR_MAP,
+                                          save_fig = save_fig,
+                                          kwargs=plt_kwargs)
 
         return
 
@@ -399,7 +423,9 @@ class Plot:
                          var_names_1=['beta_att', 'linear_depol_ratio'],
                          var_names_2=['beta_att_clean', 'linear_depol_ratio_clean'],
                          scales=['log', 'lin'],
-                         range_limits=[0, 15000]):
+                         range_limits=[0, 15000],
+                         save_fig = True,
+                         fig_dpi = 400):
         '''
         Creates 2 subplots to compare side by side vertical profiles of beta attenuation and linear depolarisation ratio.
 
@@ -434,6 +460,13 @@ class Plot:
                                                                  range_limits=range_limits)
         else:
             raise ValueError("'comparison' is expected to be 'variable' or 'time'")
+        
+        if save_fig:
+            filepath = filename_to_save(dataset=self.CL61_parent.dataset.sel(time=time_period, method="nearest"),
+                                        save_name=save_fig, suffix='comp_profiles')
+            print(f'saved element to {filepath}')
+            plt.savefig(filepath, bbox_inches='tight', dpi=fig_dpi)
+        
         plt.show()
 
         return axs
