@@ -40,456 +40,348 @@ BATLOW_7COLORS = [
 
 COLOR_CODES_BLUE_YEL = ['#03245C', '#D69444']
 
+class PlotCL61:
+    
+    def __init__(self, dataset):
+        self.dataset = dataset
 
-def histogram1d(dataset,
-                variable_name='beta_att_clean',
-                hue_variable=None,
-                var_transform='log',
-                count_log=False,
-                use_matplotlib=False,
-                save_fig=False,
-                fig_dpi = 300,
-                cmap=COLOR_MAP,
-                **kwargs):
-    """
-    Create a 1D histogram or bar plot for a given variable.
-
-    Parameters
-    ----------
-    dataset : xarray dataset
-
-    variable_name : str
-        default = beta_att_clean
-    hue_variable : str
-         The name of the variable to use for color categorization.
-    var_transform: 'str'
-        'log' for logarithmic scale on x-axis, None otherwise
-    count_log: boolean
-        logarithmic count scale
-    use_matplotlib: boolean
-        If True, use Matplotlib for plotting. Otherwise, use Seaborn.
-    save_fig: boolean
-        If fig should be saved or not
-    cmap : matplotlib colormap
-    **kwargs :
-        Additional keyword arguments to pass to the plotting function.
-
-    Returns
-    -------
-        None
-    """
-
-    # Manage scales:
-    if var_transform == 'log':
-        if count_log:
-            log_scales = [True, True]
-        else:
-            log_scales = True
-    else:
-        log_scales = False
-
-    # Generate some example data
-    x = dataset[variable_name].values.flatten()
-
-    if hue_variable:
-        c = dataset[hue_variable].values.flatten()
-        df = pd.DataFrame({variable_name: x, hue_variable: c})
-
-    else:
-        c = None
-        df = pd.DataFrame({variable_name: x})
-
-    if use_matplotlib:
-        # Use Matplotlib for more fine-grained control
-        plt.figure(figsize=(8, 6))
-        plt.title(f'1D Histogram of {variable_name}')
-        plt.xlabel(variable_name)
-        plt.ylabel('Count (log scale)' if count_log else 'Count')
-
-        if var_transform == 'log':
-            df[variable_name] = np.log10(df[variable_name])
-
-        if hue_variable:
-            for hue_value in df[hue_variable].unique():
-                data = df[df[hue_variable] == hue_value][variable_name]
-                plt.hist(data, alpha=0.5, label=f'{hue_variable}={hue_value}', log=count_log, **kwargs)
-            plt.legend()
-        else:
-            plt.hist(df[variable_name], log=count_log, **kwargs)
-
-    else:
-        # Use Seaborn for a simple, attractive plot
-        sns.set(style="whitegrid")
-        plt.figure(figsize=(8, 6))
-
-        sns.histplot(data=df, x=variable_name, hue=hue_variable, multiple="stack",
-                     palette=(cmap if hue_variable else None), edgecolor=".3",
-                     linewidth=.5, log_scale=log_scales, **kwargs)
-        plt.title(f'1D Histogram of {variable_name}')
-        plt.xlabel(variable_name)
-        plt.ylabel('Count (log scale)' if count_log else 'Count')
-
-    if save_fig:
-        plt.savefig(filename_to_save(dataset, save_fig, suffix=f'hist_{variable_name}'), dpi = fig_dpi)
-
-    plt.show()
-    return
-
-
-def histogram2d(dataset,
-                var1 = 'beta_att_clean',
-                var2 = 'linear_depol_ratio_clean',
-                log_transforms=[True, False],
-                count_tf='log',
-                min_count_per_bin=2,
-                cmap=COLOR_MAP,
-                save_fig = False,
-                fig_dpi = 300):
-    """
-    Plots the 2D histogram for given variables
-
-    Parameters
-    ----------
-    dataset
-    variable_names
-    log_transforms
-    count_tf
-    min_count_per_bin
-    cmap
-
-    Returns
-    -------
-        seaborn JointGridObject
-    """
-    if (var1 is None)|(var2 is None):
-        raise (ValueError('This function is designed for 2 dimensions'))
-
-    # Generate some example data
-    x = dataset[var1].values.flatten()
-    # Apply transforms
-    if log_transforms[0]:
-        x = np.log10(x)
-    y = dataset[var2].values.flatten()
-    if log_transforms[1]:
-        y = np.log10(y)
-    # Into a dataframe for seaborn use
-    df = pd.DataFrame({var1: x, var2: y})
-
-    # Create a jointGrid
-    g = sns.JointGrid(data=df, x=var1, y=var2, height=8, ratio=4)
-    # Plot hist as hexbin
-    hb = g.ax_joint.hexbin(x, y, gridsize=500, cmap=cmap,
-                           mincnt=min_count_per_bin, bins=count_tf)
-
-    # Add a colorbar to show the mapping of z values to colors
-    cax = plt.gcf().add_axes([1.05, 0.1, 0.05, 0.7])  # Adjust the position and size of the colorbar
-    cbar = plt.colorbar(hb, cax=cax)
-
-    # Create marginal histograms
-    sns.histplot(data=df, x=var1, ax=g.ax_marg_x, color='#03245C', cbar_kws={"edgecolor": None})
-    sns.histplot(data=df, y=var2, ax=g.ax_marg_y, color='#03245C', orientation='horizontal', cbar_kws={"edgecolor": None})
-
-    if save_fig:
-        filepath = filename_to_save(dataset, save_fig, suffix='hist2D')
-        print(f'saved element to {filepath}')
-        plt.savefig(filepath, bbox_inches='tight', dpi=fig_dpi)
-
-    return g
-
-
-def plot_cl61_as_colormesh(dataset, variable_names=['beta_att', 'linear_depol_ratio'],
+    def colormesh(self, variable_names=['beta_att', 'linear_depol_ratio'],
                         min_value=1e-7,
                         max_value=1e-4,
                         range_limits=None,
-                        color_map=COLOR_MAP_NAME,
                         scales=['log', 'linear'],
                         time_var='time',
                         range_var='range',
+                        color_map=COLOR_MAP_NAME,
                         save_fig = False,
                         fig_dpi = 300,
+                        fig = None, axs = None,
                         **kwargs):
-    """
-    Plot CL61 data as a colormesh.
+        """
+        Plot CL61 data as a colormesh.
 
-    Args:
-        dataset (_type_): The dataset to be plotted.
-        variable_names (list, optional): Names of the variables to be plotted.. Defaults to ['beta_att', 'linear_depol_ratio'].
-        min_value (_type_, optional):Minimum value for the color scale.. Defaults to 1e-7.
-        max_value (_type_, optional): Maximum value for the color scale.. Defaults to 1e-4.
-        range_limits (int or list , optional): max_range or [min_range, max_range] for the y-axis (optional upper limit).. Defaults to None.
-        color_map (_type_, optional): Matplotlib colormap name. (Default see file).
-        scales (list, optional): to specify the color scales. Defaults to ['log', 'linear'].
-        time_var (str, optional): Name of the time variable. Defaults to 'time'.
-        range_var (str, optional): Name of the range variable. Defaults to 'range'.
-        save_fig (bool, optional): Set to True if you want to save the figure. Defaults to True.
-    """
-    x = dataset[time_var].values
-    h = np.round(dataset[range_var].values)
-    back_att_arr = dataset[variable_names[0]].T.values
-    depol_arr = dataset[variable_names[1]].T.values
+        Args:
+            dataset (_type_): The dataset to be plotted.
+            variable_names (list, optional): Names of the variables to be plotted.. Defaults to ['beta_att', 'linear_depol_ratio'].
+            min_value (_type_, optional):Minimum value for the color scale.. Defaults to 1e-7.
+            max_value (_type_, optional): Maximum value for the color scale.. Defaults to 1e-4.
+            range_limits (int or list , optional): max_range or [min_range, max_range] for the y-axis (optional upper limit).. Defaults to None.
+            color_map (_type_, optional): Matplotlib colormap name. (Default see file).
+            scales (list, optional): to specify the color scales. Defaults to ['log', 'linear'].
+            time_var (str, optional): Name of the time variable. Defaults to 'time'.
+            range_var (str, optional): Name of the range variable. Defaults to 'range'.
+            save_fig (bool, optional): Set to True if you want to save the figure. Defaults to True.
+        """
+        dataset = self.dataset
+        x = dataset[time_var].values
+        h = np.round(dataset[range_var].values)
+        back_att_arr = dataset[variable_names[0]].T.values
+        depol_arr = dataset[variable_names[1]].T.values
 
-    fig, [ax, ax2] = plt.subplots(2, 1, figsize=(10, 5), sharex=True)
+        fig, [ax, ax2] = plt.subplots(2, 1, figsize=(10, 5), sharex=True)
 
-    lims = [np.max([np.nanmin(back_att_arr), min_value]), np.min([np.nanmax(back_att_arr), max_value])]
+        lims = [np.max([np.nanmin(back_att_arr), min_value]), np.min([np.nanmax(back_att_arr), max_value])]
 
-    if isinstance(range_limits, int):
-        range_limits = [0, range_limits]
-    elif isinstance(range_limits, list):
-        if len(range_limits) == 1:
-            range_limits = [0, range_limits[-1]]
-        if len(range_limits) > 2:
-            print('Did not expect range_limits length > 2 ; taking first 2 values')
-            range_limits = range_limits[:2]
-    else:
-        range_limits = [0, 15000]
-    
-    if scales[0] == 'log':
-        cax = ax.pcolormesh(x, h, back_att_arr, axes=ax, shading='nearest', cmap=color_map,
-                            norm=colors.LogNorm(vmin=lims[0], vmax=lims[1]))
-    else:
-        cax = ax.pcolormesh(x, h, back_att_arr, axes=ax, shading='nearest', cmap=color_map, vmin=0, vmax=1)
-    
-    cbar = fig.colorbar(cax)
-    cbar.ax.get_yaxis().labelpad = 15
-    cbar.ax.set_ylabel(rf'{variable_names[0]}', rotation=90)
-    ax.set_ylabel('Range (m)')
-    # ax.set_xlabel('time')
-    ax.set_ylim(range_limits)
-
-    if scales[1] == 'log':
-        cax2 = ax2.pcolormesh(x, h, depol_arr, shading='nearest', cmap=color_map,
-                              norm=colors.LogNorm(vmin=lims[0], vmax=lims[1]))
-    else:
-        cax2 = ax2.pcolormesh(x, h, depol_arr, shading='nearest', cmap=color_map, vmin=0, vmax=1)
-
-    cbar = fig.colorbar(cax2)
-    cbar.ax.get_yaxis().labelpad = 15
-    cbar.ax.set_ylabel(rf'{variable_names[1]}', rotation=90)
-    
-    ax2.set_ylabel('Range (m)')
-    ax2.set_xlabel('time')
-    ax2.set_ylim(range_limits)
-
-    ax2.set_xticklabels(ax2.get_xticklabels(), rotation=30, ha='right')
-
-    if save_fig:
-        filepath = filename_to_save(dataset, save_fig, suffix='colormesh')
-        print(f'saved element to {filepath}')
-        plt.savefig(filepath, bbox_inches='tight', dpi=fig_dpi)
-    
-    plt.show()
-    return
-
-
-def plot_cl61_as_colormesh_ds(dataset, variable_names=['beta_att', 'linear_depol_ratio'],
-                           min_value=1e-7,
-                           max_value=1e-4,
-                           range_limits=False,
-                           color_map=COLOR_MAP_NAME,
-                           scales=['log', 'linear'],
-                           time_var='time',
-                           range_var='range',
-                           ax = None,
-                           fig = None):
-    '''
-    Test to plot colormesh with datashader for more efficient visualization
-    '''
-
-    # cvs = ds.Canvas(plot_width=500, plot_height=500)
-    if (ax == None) | (fig == None):
-        fig, ax = plt.subplots(1, 1, figsize=(10, 10))
-
-    # Define the original colormap (e.g., 'viridis')
-    original_cmap = plt.get_cmap(color_map)
-
-    # Define the number of discrete categories
-    num_categories = np.unique(dataset['cluster_labels']).size  # Adjust as needed
-
-    # Create a list of evenly spaced values to sample the colormap
-    color_values = np.linspace(0, 1, num_categories)
-
-    # Sample the original colormap at the specified values
-    discrete_colors = original_cmap(color_values)
-
-    # Create a custom ListedColormap with the discrete colors
-    discrete_cmap = ListedColormap(discrete_colors)
-
-    artist0 = dsshow(dataset, tf.shade('log10_beta_att', 'linear_depol'), ds.mean('cluster_labels'),
-                     ax=ax, cmap=discrete_cmap)
-
-    # agg = cvs.points(df, 'log10_Beta_att', 'Linear_depol', ds.mean('Cluster_Labels'))
-    if (ax == None) | (fig == None):
-        fig.colorbar(artist0, ax=ax, orientation='vertical')
-    ax.set_title('Feature space clustering')
-    ax.set_xlabel('log10 beta attenuation (m-1 sr-1)')
-    ax.set_ylabel('linear depolarisation')
-
-    return
-
-
-def plotCl61asProfile(dataset, time_period=None,
-                      variable='beta_att',
-                      range_limits=False,
-                      color_map='Spectral_r'):
-    if type(variable) == str:
-        L = 1
-        variable = [variable]
-    elif type(variable) == list:
-        L = len(variable)
-    else:
-        print(f"Didn't expect variable of type {type(variable)}")
-        return False
-
-    if time_period:
-        if type(time_period) == str:
-            subset = dataset.sel(time=time_period, method="nearest")
-        elif type(time_period) == list:
-            if len(time_period) > 2:
-                print(f"Expected max 2 values (start time/date, end time/date) but got {len(time_period)}")
-                return 0
-            else:
-                subset = dataset.sel(time=slice(time_period[0], time_period[1]))
-    else:
-        subset = dataset
-
-    fig, ax = plt.subplots(1, L, sharey=True)
-    if L == 1:
-        ax = [ax]
-
-    h = np.round(dataset['range'].values)
-
-    for var_i in range(L):
-
-        x = subset[variable[var_i]].T.values
-        ax[var_i].plot(x, h, alpha=0.5)
-
-        # should be 3276,T
-        if x.ndim > 2:
-            print('Did not expect dim>2')
-        elif x.ndim == 2:
-            mean_x = np.mean(x, axis=1)
-            ax[var_i].plot(mean_x, h, color='red')
-
-        ax[var_i].set_xlabel(f'{variable}')
-        ax[var_i].set_ylabel('range')
-        ax[var_i].set_title(f'{variable} profile')
-
-    if range_limits:
-        if type(len) == int:
+        if isinstance(range_limits, int):
             range_limits = [0, range_limits]
-        elif len(range_limits) > 2:
-            print('Did not expect range_limits length > 2 ; taking first 2 values')
-            range_limits = range_limits[:2]
-        elif type(range_limits) != list:
-            print("Input range_limits type not matching")
-            return False
-        plt.ylim(range_limits)
-
-    return True
-
-
-def plotVerticalProfiles(dataset, time_period=None,
-                         var_names=['beta_att', 'linear_depol_ratio'],
-                         range_limits=[0, 15000],
-                         xlabel1='Beta attenuation',
-                         xlabel2='linear depol ratio',
-                         ylabel='range [m]',
-                         title= None,
-                         var_xlims=[[1e-7, 1e-4],
-                                    [0, 1]],
-                         x_scales=['log', 'linear'],
-                         plot_colors=['#124E63', '#F6A895'],
-                         ax=None,
-                         save_fig=False,
-                         fig_dpi=300):
-    """
-    Plot profiles of beta attenuation and depolarization ratio respect to height (range).
-
-    Args:
-        dataset (xarray dataset): dataset containing CL61 raw data
-        time_period (str or list, optional): string or list of 2 datetime strings following the format "year-month-day hour:min:sec" . Defaults to None.
-        var_names (list, optional): variable names. Defaults to ['beta_att', 'linear_depol_ratio'].
-        range_limits (list, optional): limit of heights to plot. Defaults to [0, 15000].
-        xlabel1 (str, optional): to change the xlabel description of variable 1. Defaults to 'Beta attenuation'.
-        xlabel2 (str, optional): to change the xlabel description of variable 2. Defaults to 'linear depol ratio'.
-        ylabel (str, optional): to change the xlabel description of height variable. Defaults to 'range [m]'.
-        title (str, optional): to change the title. Defaults to 'CL61 profiles'.
-        var_xlims (list, optional): _description_. Defaults to [[1e-7, 1e-4], [0, 1]].
-        x_scales (list, optional): _description_. Defaults to ['log', 'linear'].
-        plot_colors (list, optional): _description_. Defaults to ['#124E63', '#F6A895'].
-        ax (_type_, optional): _description_. Defaults to None.
-        save_fig (bool, optional): _description_. Defaults to True.
-        fig_dpi (int, optional): _description_. Defaults to 300.
-
-    Raises:
-        ValueError: _description_
-        TypeError: _description_
-
-    Returns:
-        _type_: _description_
-    """
-    # Get time period wished
-    if time_period:
-        if isinstance(time_period, str):
-            subset = dataset.sel(time=time_period, method="nearest")
-        elif isinstance(time_period, list):
-            if len(time_period) > 2:
-                raise ValueError(f"Expected max 2 values (start time/date, end time/date) but got {len(time_period)}")
-            subset = dataset.sel(time=slice(time_period[0], time_period[1])).mean(dim='time')
+        elif isinstance(range_limits, list):
+            if len(range_limits) == 1:
+                range_limits = [0, range_limits[-1]]
+            if len(range_limits) > 2:
+                print('Did not expect range_limits length > 2 ; taking first 2 values')
+                range_limits = range_limits[:2]
         else:
-            raise TypeError(f"Expected time_period to be of type str or list, but got {type(time_period)}")
-    else:
-        subset = dataset.mean(dim='time')
-
-    # Get variables
-    beta_atts = subset[var_names[0]]
-    lin_depols = subset[var_names[1]]
-    heights = subset['range']
-
-    # Create a figure and two subplots
-    if ax is None:
-        fig, ax = plt.subplots(1, 1, figsize=(4, 6))
-
-    # Plot the first variable with a logarithmic x-axis
-    if x_scales[0] == 'log':
-        ax.semilogx(beta_atts, heights, label=xlabel1, color=plot_colors[0], alpha=0.8)
-    else:
-        ax.plot(beta_atts, heights, label=xlabel1, color=plot_colors[0], alpha=0.8)
-
-    ax.set_xlabel(xlabel1)
-    ax.set_ylabel(ylabel)
-    ax.set_xlim(var_xlims[0])
-
-    # Plot the second variable with a linear x-axis on a separate axis
-    ax2 = ax.twiny()
-    ax2.tick_params(axis='x', labelcolor=plot_colors[1])
-    if x_scales[1] == 'log':
-        ax2.semilogx(lin_depols, heights, label=xlabel2, color=plot_colors[1], alpha=0.8)
-    else:
-        ax2.plot(lin_depols, heights, label=xlabel2, color=plot_colors[1], alpha=0.8)
-    ax2.set_xlabel(xlabel2, color=plot_colors[1])
-    ax2.set_xlim(var_xlims[1])
-
-    # Add a legend
-    # ax1.legend(loc='upper right')
-    # ax2.legend(loc='upper right')
-    
-    # set_title:
-    if title:
-        plt.title(title)
-    else:
-        plt.title(f'CL61 profiles - {time_period}')
+            range_limits = [0, 15000]
         
-    # set height limits
-    plt.ylim(range_limits)
+        if scales[0] == 'log':
+            cax = ax.pcolormesh(x, h, back_att_arr, axes=ax, shading='nearest', cmap=color_map,
+                                norm=colors.LogNorm(vmin=lims[0], vmax=lims[1]))
+        else:
+            cax = ax.pcolormesh(x, h, back_att_arr, axes=ax, shading='nearest', cmap=color_map, vmin=0, vmax=1)
+        
+        cbar = fig.colorbar(cax)
+        cbar.ax.get_yaxis().labelpad = 15
+        cbar.ax.set_ylabel(rf'{variable_names[0]}', rotation=90)
+        ax.set_ylabel('Range (m)')
+        # ax.set_xlabel('time')
+        ax.set_ylim(range_limits)
 
-    if save_fig:
-        filepath = filename_to_save(dataset, save_fig, suffix='vprofile')
-        print(f'saved element to {filepath}')
-        plt.savefig(filepath, bbox_inches='tight', dpi=fig_dpi)
-    
-    # Show the plot
-    if ax == None:
+        if scales[1] == 'log':
+            cax2 = ax2.pcolormesh(x, h, depol_arr, shading='nearest', cmap=color_map,
+                                norm=colors.LogNorm(vmin=lims[0], vmax=lims[1]))
+        else:
+            cax2 = ax2.pcolormesh(x, h, depol_arr, shading='nearest', cmap=color_map, vmin=0, vmax=1)
+
+        cbar = fig.colorbar(cax2)
+        cbar.ax.get_yaxis().labelpad = 15
+        cbar.ax.set_ylabel(rf'{variable_names[1]}', rotation=90)
+        
+        ax2.set_ylabel('Range (m)')
+        ax2.set_xlabel('time')
+        ax2.set_ylim(range_limits)
+
+        ax2.set_xticklabels(ax2.get_xticklabels(), rotation=30, ha='right')
+
+        if save_fig:
+            filepath = filename_to_save(self.dataset, save_fig, suffix='colormesh')
+            print(f'saved element to {filepath}')
+            plt.savefig(filepath, bbox_inches='tight', dpi=fig_dpi)
+        
+        plt.show()
+        return  fig, [ax,ax2]
+
+    def plot_histogram(self,
+                   variable_1='beta_att_clean',
+                   variable_2='linear_depol_ratio_clean',
+                   classes_variable=None,
+                   variable_1_log=True,
+                   variable_2_log=False,
+                   count_log=False,
+                   colormap=COLOR_MAP,
+                   save_fig=True,
+                   fig=None,
+                   ax=None):
+
+        dataset = self.dataset
+
+        if fig is None:
+            fig = plt.figure()
+
+        if ax is None:
+            ax = fig.add_subplot(111)
+
+        if variable_2 is None:
+            # 1D histogram
+            x = dataset[variable_1].values.flatten()
+            if classes_variable:
+                c = dataset[classes_variable].values.flatten()
+                df = pd.DataFrame({variable_1: x, classes_variable: c})
+            else:
+                c = None
+                df = pd.DataFrame({variable_1: x})
+
+            if variable_1_log:
+                df[variable_1] = np.log10(df[variable_1])
+
+            if classes_variable:
+                sns.set(style="whitegrid")
+                sns.histplot(data=df, x=variable_1, hue=classes_variable, multiple="stack",
+                            palette=colormap, edgecolor=".3",
+                            linewidth=.5, log_scale=count_log, ax=ax)
+                ax.set_title(f'1D Histogram of {variable_1}')
+                ax.set_xlabel(variable_1)
+                ax.set_ylabel('Count (log scale)' if count_log else 'Count')
+            else:
+                ax.set_title(f'1D Histogram of {variable_1}')
+                ax.set_xlabel(variable_1)
+                ax.set_ylabel('Count (log scale)' if count_log else 'Count')
+                ax.hist(df[variable_1], log=count_log)
+
+        else:
+            # 2D histogram
+            if (variable_1 is None) or (variable_2 is None):
+                raise ValueError('Both variables are required for 2D histogram.')
+
+            if ax is None:
+                ax = fig.add_subplot(111)
+
+            x = dataset[variable_1].values.flatten()
+            y = dataset[variable_2].values.flatten()
+            if variable_1_log:
+                x = np.log10(x)
+            if variable_2_log:
+                y = np.log10(y)
+            df = pd.DataFrame({variable_1: x, variable_2: y})
+
+            g = sns.JointGrid(data=df, x=variable_1, y=variable_2, height=8, ratio=4)
+            hb = g.ax_joint.hexbin(x, y, gridsize=500, cmap=colormap, bins=count_log)
+
+            cax = plt.gcf().add_axes([1.05, 0.1, 0.05, 0.7])
+            cbar = plt.colorbar(hb, cax=cax)
+
+            sns.histplot(data=df, x=variable_1, ax=g.ax_marg_x, color=colormap, cbar_kws={"edgecolor": None})
+            sns.histplot(data=df, y=variable_2, ax=g.ax_marg_y, color=colormap, orientation='horizontal', cbar_kws={"edgecolor": None})
+
+        if save_fig:
+            plt.savefig(filename_to_save(dataset, save_fig, suffix=f'hist_{variable_1}_vs_{variable_2}'), dpi=300)
+
         plt.show()
 
-    return [ax, ax2]
+        return fig, ax
+
+    def vertical_profile(self, time_period=None,
+                            var_names=['beta_att', 'linear_depol_ratio'],
+                            range_limits=[0, 15000],
+                            xlabel1='Beta attenuation',
+                            xlabel2='linear depol ratio',
+                            ylabel='range [m]',
+                            title= None,
+                            var_xlims=[[1e-7, 1e-4],
+                                        [0, 1]],
+                            x_scales=['log', 'linear'],
+                            plot_colors=['#124E63', '#F6A895'],
+                            fig=None,
+                            ax=None,
+                            save_fig=False,
+                            fig_dpi=300):
+        """
+        Plot profiles of beta attenuation and depolarization ratio respect to height (range).
+
+        Args:
+            time_period (str or list, optional): Time period or list of two datetime strings following the format "year-month-day hour:min:sec". Defaults to None.
+            var_names (list, optional): Variable names. Defaults to ['beta_att', 'linear_depol_ratio'].
+            range_limits (list, optional): Limit of heights to plot. Defaults to [0, 15000].
+            xlabel1 (str, optional): X-label description of variable 1. Defaults to 'Beta attenuation'.
+            xlabel2 (str, optional): X-label description of variable 2. Defaults to 'Linear depol ratio'.
+            ylabel (str, optional): Y-label description of height variable. Defaults to 'range [m]'.
+            title (str, optional): Title of the plot. Defaults to None.
+            var_xlims (list, optional): X-axis limits for variables. Defaults to [[1e-7, 1e-4], [0, 1]].
+            x_scales (list, optional): List of x-axis scales ('log' or 'linear') for variables. Defaults to ['log', 'linear'].
+            plot_colors (list, optional): List of plot colors. Defaults to ['#124E63', '#F6A895'].
+            ax (matplitlib axis object, optional): Matplotlib axis to use for the plot. Defaults to None.
+            save_fig (bool, optional): Whether to save the figure. Defaults to True.
+            fig_dpi (int, optional): DPI for saved figure. Defaults to 300.
+        Raises:
+            ValueError: if time period is not defined as expected
+
+        Returns:
+            ax, ax2 (matplotlib axis objects): The primary and secondary axes used in the plot.
+        """
+        # get dataset
+        dataset = self.dataset
+
+        # Handle time_period input
+        # Handle time_period input
+        if time_period is None:
+            time_period = "Entire Period"
+        elif isinstance(time_period, str):
+            time_period = [time_period]
+        elif not isinstance(time_period, list) or len(time_period) != 2:
+            raise ValueError("time_period should be a string, a list of two datetime strings, or None.")
+
+        # Select data based on time_period
+        if len(time_period) == 2:
+            subset = dataset.sel(time=slice(time_period[0], time_period[1])).mean(dim='time')
+        else:
+            subset = dataset.sel(time=time_period[0], method="nearest")
+
+        # Get time period wished
+        # if time_period:
+        #     if isinstance(time_period, str):
+        #         subset = dataset.sel(time=time_period, method="nearest")
+        #     elif isinstance(time_period, list):
+        #         if len(time_period) > 2:
+        #             raise ValueError(f"Expected max 2 values (start time/date, end time/date) but got {len(time_period)}")
+        #         subset = dataset.sel(time=slice(time_period[0], time_period[1])).mean(dim='time')
+        #     else:
+        #         raise TypeError(f"Expected time_period to be of type str or list, but got {type(time_period)}")
+        # else:
+        #     subset = dataset.mean(dim='time')
+
+        # Get variables
+        beta_atts = subset[var_names[0]]
+        lin_depols = subset[var_names[1]]
+        heights = subset['range']
+
+        # Create a figure and suplot 
+        if fig is None:
+            fig = plt.figure(figsize=(4, 6))
+
+        if ax is None:
+            ax = fig.add_subplot(111)
+
+        # Plot the first variable with a logarithmic x-axis
+        if x_scales[0] == 'log':
+            ax.semilogx(beta_atts, heights, label=xlabel1, color=plot_colors[0], alpha=0.8)
+        else:
+            ax.plot(beta_atts, heights, label=xlabel1, color=plot_colors[0], alpha=0.8)
+
+        ax.set_xlabel(xlabel1)
+        ax.set_ylabel(ylabel)
+        ax.set_xlim(var_xlims[0])
+
+        # Plot the second variable with a linear x-axis on a separate axis
+        ax2 = ax.twiny()
+        ax2.tick_params(axis='x', labelcolor=plot_colors[1])
+        if x_scales[1] == 'log':
+            ax2.semilogx(lin_depols, heights, label=xlabel2, color=plot_colors[1], alpha=0.8)
+        else:
+            ax2.plot(lin_depols, heights, label=xlabel2, color=plot_colors[1], alpha=0.8)
+        ax2.set_xlabel(xlabel2, color=plot_colors[1])
+        ax2.set_xlim(var_xlims[1])
+        
+        # set_title:
+        if title:
+            plt.title(title)
+        else:
+            plt.title(f'CL61 profiles - {time_period}')
+            
+        # set height limits
+        plt.ylim(range_limits)
+
+        if save_fig:
+            filepath = filename_to_save(dataset, save_fig, suffix='vprofile')
+            print(f'Saved figure to {filepath}')
+            plt.savefig(filepath, bbox_inches='tight', dpi=fig_dpi)
+        
+        # Show the plot
+        if ax == None:
+            plt.show()
+
+        return ax, ax2
+
+    def compare_profiles(self, time_period=None, comparison='variable',
+                        var_names_1=['beta_att', 'linear_depol_ratio'],
+                        var_names_2=['beta_att_clean', 'linear_depol_ratio_clean'],
+                        scales=['log', 'lin'],
+                        range_limits=[0, 15000],
+                        save_fig=True,
+                        fig_dpi=400):
+        '''
+        Creates 2 subplots to compare side by side vertical profiles of beta attenuation and linear depolarisation ratio.
+
+        Args:
+            time_period (str or list of str): Time element-s of interest. Expected to be a single str if comparison is not 'time',
+            else should be a list of 2 time elements (str) to compare.
+            var_names_1 (list): List of the variable names setting the vertical profiles.
+            var_names_2 (list): List of the variable names for the 2nd profiles for comparison if comparison is 'variable'.
+        '''
+        fig, axs = plt.subplots(1, 2, figsize=(10, 6))
+
+        if comparison == 'variable':
+            for i, var_names in enumerate([var_names_1, var_names_2]):
+                axs[i], ax_twin = self.vertical_profile(
+                    time_period=time_period,
+                    var_names=var_names,
+                    range_limits=range_limits,
+                    ax=axs[i]
+                )
+
+        elif comparison == 'time':
+            if not isinstance(time_period, list) or len(time_period) != 2:
+                raise ValueError("If vertical profile comparison in time, time_period is expected to be a list of 2 time strings")
+
+            for i, time in enumerate(time_period):
+                axs[i], ax_twin = self.vertical_profile(
+                    time_period=time,
+                    var_names=var_names_1 if i == 0 else var_names_2,
+                    range_limits=range_limits,
+                    ax=axs[i]
+                )
+
+        else:
+            raise ValueError("Comparison should be 'variable' or 'time'.")
+
+        if save_fig:
+            filepath = filename_to_save(
+                dataset=self.dataset.sel(time=time_period, method="nearest"),
+                save_name=save_fig,
+                suffix='comp_profiles'
+            )
+            print(f'Saved element to {filepath}')
+            plt.savefig(filepath, bbox_inches='tight', dpi=fig_dpi)
+
+        plt.show()
+
+        return fig, axs
+

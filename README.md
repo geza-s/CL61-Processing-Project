@@ -50,6 +50,5 @@ This project is for now unlicensed.
 
 ## Acknowledgments
 
-- [Acknowledgements or credits for any third-party libraries or tools used in the project]
 
-For any questions or inquiries, please feel free to contact the project's contributor(s) mentioned above.
+For any questions or inquiries, please feel free to contact the project's contributor mentioned above.

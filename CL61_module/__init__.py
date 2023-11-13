@@ -3,6 +3,9 @@
 # Import modules to expose them at the package level
 
 from .module import CL61Processor  # Exposing class from the submodule
-from . import noise_processing # submodule to access noise processing functions
+from . import process # submodule to access main processing submodule
 from . import visualization  # submodule to access noise processing functions
-from . import classification # submodule to access classification functions
+
+# Other submodules to directly access functions of interest
+from . import classification
+from . import process_noise

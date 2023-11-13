@@ -161,7 +161,8 @@ def K_means_classifier(dataset, cluster_N = 8,
                        weights = [1,1,0.5],
                        kmean_method = 'k-means++',
                        plot_result = True,
-                       save_fig = True):
+                       save_fig = True,
+                       range_limits = [0,6000]):
     '''
     Implementation of k-mean classification on data from CL61 ceilometer.
     Visualization of results can be called with "plot_result=True".
@@ -223,7 +224,8 @@ def K_means_classifier(dataset, cluster_N = 8,
                                                original_shape_labels_array,
                                                num_categories=cluster_N,
                                                fig = fig,
-                                               ax = axes[1])
+                                               ax = axes[1],
+                                               range_limits = range_limits)
         if save_fig:
             plt.savefig(filename_to_save(dataset, save_fig))
                 
