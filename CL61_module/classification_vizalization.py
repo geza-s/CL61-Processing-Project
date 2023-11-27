@@ -103,13 +103,14 @@ def visualize_classification_featurespace_2D(feature1_name,
 
     return fig, ax
 
-def visualize_Kmean_results(dataset,
+def visualize_cluster_results(dataset,
                             original_shape_labels_array,
                             num_categories,
                             fig = None, 
                             ax = None,
                             range_limits = [0,5000],
                             color_map = COLOR_MAP_NAME):
+    
     # Define the original colormap (e.g., 'viridis')
     #original_cmap = plt.get_cmap(COLOR_MAP_NAME)
 
@@ -134,10 +135,7 @@ def visualize_Kmean_results(dataset,
     # Create a colored mesh plot using the custom colormap
     bounds = np.arange(0,num_categories+1)
     norm = colors.BoundaryNorm(boundaries=bounds, ncolors=256)
-    plot = ax.pcolormesh(dataset['time'], dataset['range'], original_shape_labels_array,
-                norm = norm,
-                shading='nearest',
-                cmap=color_map)
+    plot = ax.pcolormesh(dataset['time'], dataset['range'], original_shape_labels_array, norm = norm, shading='nearest', cmap=color_map)
 
     # Add a colorbar with discrete color labels
     #norm = colors.BoundaryNorm(boundaries=bounds, ncolors=256)

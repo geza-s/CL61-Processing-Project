@@ -11,11 +11,6 @@ import seaborn as sns
 # batlow colourmap
 import cmcrameri.cm as cmc
 
-# improved large data visualization
-import datashader as ds
-from datashader.mpl_ext import dsshow  # for matplotlib integration
-from datashader import transfer_functions as tf
-
 from .classification_vizalization import *
 from .utils import filename_to_save
 
@@ -44,6 +39,68 @@ class PlotCL61:
     
     def __init__(self, dataset):
         self.dataset = dataset
+
+    def show_timeserie(self,
+                        variable_names=['beta_att', 'linear_depol_ratio'],
+                        label_names = None,
+                        value_ranges=[[1e-7, 1e-4],[0,1]],
+                        range_limits=None,
+                        scales=['log', 'linear'],
+                        color_map="cmc.batlow",
+                        fig = None, axs = None,
+                        save_fig = False,
+                        fig_dpi = 300,
+                        **kwargs):
+        
+        # Slice data based on range
+        range_limits = get_range_limits(range_limits)
+        subset = self.dataset.sel(range = slice(*range_limits))
+
+        # Check variables to plot
+        if isinstance(variable_names,str):
+            variable_names = [variable_names]
+        L = len(variable_names)
+
+        # Plot 
+        if axs is None:
+            fig, axs = plt.subplots(L, 1, sharex=True, figsize = (12, L*3 + 1))
+        elif fig is None:
+            fig = plt.figure(figsize = (12, L*3 + 1))
+
+        for i, var_name in enumerate(variable_names):
+
+            # Get ax
+            try:
+                ax = axs[i]
+            except (TypeError, IndexError):
+                ax = fig.add_subplot(L, 1, i+1)
+
+            # Get range of value
+            try: vmin, vmax = value_ranges[i]
+            except: vmin, vmax = None, None
+
+            if scales[i] == 'log':
+                vmin = np.log10(vmin) if vmin != None  else vmin
+                vmax = np.log10(vmax) if vmax != None  else vmax
+                im = np.log10(subset[var_name]).plot.imshow(x='time', y='range', vmin=vmin, vmax=vmax, ax = ax, cmap=color_map)
+            else:
+                im = subset[var_name].plot.imshow(x='time', y='range', vmin=vmin, vmax=vmax, ax = ax, cmap = color_map)
+
+            cbar = im.colorbar
+            if label_names:
+                cbar.set_label(var_name[i])
+            #else:
+            #    cbar.set_label(var_name)
+            ax.set_ylabel('range [m]')
+            ax.set_title('')
+
+        if save_fig:
+            filepath = filename_to_save(self.dataset, save_fig, suffix='colormesh')
+            print(f'saved figure to {filepath}')
+            plt.savefig(filepath, bbox_inches='tight', dpi=fig_dpi)
+
+        return axs
+
 
     def colormesh(self, variable_names=['beta_att', 'linear_depol_ratio'],
                         min_value=1e-7,
@@ -82,16 +139,7 @@ class PlotCL61:
 
         lims = [np.max([np.nanmin(back_att_arr), min_value]), np.min([np.nanmax(back_att_arr), max_value])]
 
-        if isinstance(range_limits, int):
-            range_limits = [0, range_limits]
-        elif isinstance(range_limits, list):
-            if len(range_limits) == 1:
-                range_limits = [0, range_limits[-1]]
-            if len(range_limits) > 2:
-                print('Did not expect range_limits length > 2 ; taking first 2 values')
-                range_limits = range_limits[:2]
-        else:
-            range_limits = [0, 15000]
+        range_limits = get_range_limits(range_limits=range_limits)
         
         if scales[0] == 'log':
             cax = ax.pcolormesh(x, h, back_att_arr, axes=ax, shading='nearest', cmap=color_map,
@@ -124,7 +172,7 @@ class PlotCL61:
 
         if save_fig:
             filepath = filename_to_save(self.dataset, save_fig, suffix='colormesh')
-            print(f'saved element to {filepath}')
+            print(f'saved figure to {filepath}')
             plt.savefig(filepath, bbox_inches='tight', dpi=fig_dpi)
         
         plt.show()
@@ -296,10 +344,11 @@ class PlotCL61:
         else:
             ax.plot(beta_atts, heights, label=xlabel1, color=plot_colors[0], alpha=0.8)
 
-        ax.set_xlabel(xlabel1)
+        ax.set_xlabel(xlabel1, color=plot_colors[0])
         ax.set_ylabel(ylabel)
         ax.set_xlim(var_xlims[0])
 
+        ax.tick_params(axis = 'x', labelcolor = plot_colors[0])
         # Plot the second variable with a linear x-axis on a separate axis
         ax2 = ax.twiny()
         ax2.tick_params(axis='x', labelcolor=plot_colors[1])
@@ -354,6 +403,7 @@ class PlotCL61:
                     time_period=time_period,
                     var_names=var_names,
                     range_limits=range_limits,
+                    fig = fig,
                     ax=axs[i]
                 )
 
@@ -364,8 +414,9 @@ class PlotCL61:
             for i, time in enumerate(time_period):
                 axs[i], ax_twin = self.vertical_profile(
                     time_period=time,
-                    var_names=var_names_1 if i == 0 else var_names_2,
+                    var_names=var_names_1,
                     range_limits=range_limits,
+                    fig = fig,
                     ax=axs[i]
                 )
 
@@ -383,5 +434,32 @@ class PlotCL61:
 
         plt.show()
 
-        return fig, axs
+        return
+    
+# Utility functions
+def get_range_limits(range_limits, min_range = 0, max_range = 15000):
+    """Checks and returns valid range limits
+
+    Args:
+        range_limits (int or list of int): elements of range to set as limit
+    
+    returns : list of 2 valid int as range limits
+    """
+
+    if isinstance(range_limits, int):
+        range_limits = [0, max([0, min([range_limits, max_range])])]
+    elif isinstance(range_limits, list):
+        for id, range_i in enumerate(range_limits):
+            range_limits[id] = max([0, min([range_i, max_range])])
+        if len(range_limits) == 1:
+            range_limits = [0, range_limits[-1]]
+        if len(range_limits) > 2:
+            print('Did not expect range_limits length > 2 ; taking first 2 values')
+            range_limits = range_limits[:2]
+    else:
+        range_limits = [0, 15000]
+
+    return range_limits
+
+
 

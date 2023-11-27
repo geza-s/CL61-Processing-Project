@@ -111,3 +111,26 @@ def non_noise_windows_mask(dataset, variable_name, window_size, analysis_type = 
     non_noise_mask = correlated_result>0
 
     return non_noise_mask
+
+def calculate_rolling_mean(dataset, variable_name, time_window_size, range_window_size):
+    """
+    Calculate the 2D rolling window average of a variable in an xarray dataset;
+    with necessary 2 dimension: 'time' and 'range'.
+
+    Parameters:
+        dataset (xr.Dataset): The xarray dataset containing the variable.
+        variable_name (str): The name of the variable for which to calculate the rolling average.
+        time_window_size (int): The size of the rolling window along the 'time' dimension.
+        range_window_size (int): The size of the rolling window along the 'range' dimension.
+
+    Returns:
+        xr.DataArray: The DataArray containing the 2D rolling window averages.
+    """
+    if variable_name not in dataset:
+        raise ValueError(f"Variable '{variable_name}' not found in the dataset.")
+
+    variable_data = dataset[variable_name]
+    rolling_average = variable_data.rolling(time=time_window_size, range=range_window_size, min_periods=1, center = True).mean(keep_attrs=True)
+
+    return rolling_average
+

@@ -1,6 +1,8 @@
 # system management
 import glob
 import os
+import shutil
+import tempfile
 import importlib
 
 # Array
@@ -31,37 +33,102 @@ plt.style.use('bmh')
 COLOR_MAP_NAME = 'cmc.batlow'
 COLOR_MAP = cmc.batlow  # type: ignore
 
-
 class CL61Processor:
+    def __enter__(self):
+        # Getting the temporary folder
+        self.temp_folder = tempfile.mkdtemp()
+
     def __init__(self, folder_path,
                  start_datetime=None, end_datetime=None,
                  specific_filename=None,
                  config_path='config_classification.yml',
+                 transfer_files_locally = False,
+                 parallel_computing = True,
                  dataset = None):
         
-        # Path to the data folder
+        # Folder paths
         self.folder_path = folder_path
-        # Directory to the module folder 
         self.module_dir = os.path.dirname(__file__)
-        # Open config file
+        # Congig elements 
         self.config_filepath = config_path
         self.classification_config = self.load_config(config_path)
-
+        # Dataset and time elements
         self.dataset = dataset
         self.file_time_mapping = None
         self.period_start = start_datetime
         self.period_end = end_datetime
-        
-        if self.dataset is None:
-            if specific_filename:
-                self.load_specific_data(specific_filename)
-            else:
-                self.file_time_mapping = self.get_filepaths_with_timestamps()
-                self.dataset = self.load_netcdf4_data_in_timeperiod()
+        # Temporary folder
+        self.temp_folder = None
 
-        # TAKES THE MAJOR SUBCLASSES
+        # Initialize dataset based on conditions set
+        if self.dataset is None:
+            self._load_data(specific_filename, transfer_files_locally, parallel_computing)
+
+        # Manage metadata
+        self._set_metadata()
+
+        # Takes the major subclasses
         self.plot = visualization.PlotCL61(self.dataset)
         self.process = process.ProcessCL61(self)
+
+
+    def _load_data(self, specific_filename, transfer_files_locally, parallel_computing):
+        if specific_filename:
+            self.load_specific_data(specific_filename)
+        else:
+            filepaths_interest_df = self.get_filepaths_with_timestamps(period_start=self.period_start,
+                                                                       period_end=self.period_end)
+            if transfer_files_locally:
+                self._transfer_files_locally(filepaths_interest_df)
+                # update folder and filepaths
+                self.folder_path = self.temp_folder  
+                self.get_filepaths_with_timestamps() 
+
+            self.dataset = self.load_netcdf4_data_in_timeperiod(parallel_computing=parallel_computing)
+
+    def _set_metadata(self):
+        self.dataset['beta_att'].attrs['name'] = 'attenuated backscatter coefficient'
+        self.dataset['linear_depol_ratio'].attrs['name'] = 'linear depolarisation ratio'
+
+
+    def _transfer_files_locally(self, file_names_to_copy,
+                                 temp_folder = None):
+        """
+        Transfers all filenames mentioned from the data source folder to a temporary folder
+
+        Args:
+            file_names_to_copy (list): list of filenames in source folder to transfer
+        """
+        # Define source and end folders
+        data_folder = self.folder_path
+        temp_folder = temp_folder or self.temp_folder
+
+        # Copy each file to the local folder
+        print(f"File transfer to temporary folder {temp_folder}")
+        for file_name in tqdm(file_names_to_copy):
+            source_path = os.path.join(data_folder, file_name)
+            destination_path = os.path.join(temp_folder, file_name)
+            
+            try:
+                shutil.copy2(source_path, destination_path)
+                print(f"File '{file_name}' copied successfully.")
+            except Exception as e:
+                print(f"Error copying '{file_name}': {e}")
+
+        return temp_folder
+
+    def load_specific_data(self, specific_filename):
+        '''
+        Loads specific netcdf data as whole dataset
+        args:
+            specific_filename: filename of the 
+        '''
+        specific_filepath = os.path.join(self.folder_path, specific_filename)
+        self.dataset = xr.open_dataset(specific_filepath)
+        self.period_start = self.dataset['time'][0].values
+        self.period_end = self.dataset['time'][-1].values
+        self.file_time_mapping = None
+
 
     def load_config(self, config_path):
         '''
@@ -84,41 +151,31 @@ class CL61Processor:
             else:
                 raise ValueError("Config file does not exist in module_dir: " + config_full_path)
 
-    def load_specific_data(self, specific_filename):
-        '''
-        Loads specific netcdf data as whole dataset
-        args:
-            specific_filename: filename of the 
-        '''
-        specific_filepath = os.path.join(self.folder_path, specific_filename)
-        self.dataset = xr.open_dataset(specific_filepath)
-        self.period_start = self.dataset['time'][0].values
-        self.period_end = self.dataset['time'][-1].values
-        self.file_time_mapping = None
-
-    def get_filepaths_with_timestamps(self):
+    def get_filepaths_with_timestamps(self, period_start = None, period_end=None):
         """
-        Gets all netcdfs filepaths in the given folder
+        Gets all netCDF file paths in the given folder.
+        Saves the results into a DataFrame in variable self.file_time_mapping.
+
+        Args:
+            period_start (datetime string, optional): Start of period of interest. Defaults to None.
+            period_end (datetime string, optional): End of period of interest. Defaults to None.
 
         Returns:
-            A pandas dataframe with all the file_name_path indexed by datetime
+            pandas dataframe : a slice of the filepaths mapping dataframe for the given slice of time
         """
-        # older version:
-        # filepaths = glob.glob(self.folder_path + '/*.nc')
-        # get_file_datetime = list(map(lambda date_str: pd.to_datetime(date_str, format='%Y%m%d_%H%M%S'),[path_name[-18:-3] for path_name in filepaths]))
-        # df_data_files = pd.DataFrame([filepaths, get_file_datetime], index=['file_name_path', 'Datetime']).T
-        # df_data_files.index = get_file_datetime
-        # df_data_files = df_data_files.sort_index()
-
+        filenames = glob.glob('*.nc', root_dir=self.folder_path)
         filepaths = glob.glob(os.path.join(self.folder_path, '*.nc'))
         timestamps = [pd.to_datetime(path[-18:-3], format='%Y%m%d_%H%M%S') for path in filepaths]
 
-        df_data_files = pd.DataFrame({'file_name_path': filepaths}, index=timestamps)
-        df_data_files.sort_index(inplace=True)
+        self.file_time_mapping = pd.DataFrame({'filenames': filenames, 'file_name_path': filepaths}, index=timestamps)
+        self.file_time_mapping.sort_index(inplace=True)
 
-        return df_data_files
+        period_start = period_start or self.file_time_mapping.index[0]
+        period_end = period_end or self.file_time_mapping.index[-1]
 
-    def load_netcdf4_data_in_timeperiod(self, parrallel_computing = False):
+        return self.file_time_mapping.loc[period_start:period_end]
+
+    def load_netcdf4_data_in_timeperiod(self, parallel_computing = False, chunksize = 100):
         """
         Load the netcdf4 files at given folder location and inside the given period.
 
@@ -131,8 +188,11 @@ class CL61Processor:
         # Select all files in folder referering to wished period
         selected_filemaps = self.file_time_mapping.loc[self.period_start:self.period_end]
         
-        if parrallel_computing:
-            return xr.open_mfdataset(selected_filemaps['file_name_path'], chunks={'time': 300})
+        if parallel_computing:
+            print(selected_filemaps)
+            return xr.open_mfdataset(selected_filemaps['file_name_path'],
+                                     engine = "netcdf4",
+                                     parallel = True)
         else:
             combined_dataset = None
             for row in tqdm(selected_filemaps.iterrows(), total=selected_filemaps.shape[0]):
@@ -175,114 +235,11 @@ class CL61Processor:
 
     def reload_modules(self):
         importlib.reload(visualization)
-        importlib.reload(noise_processing)
+        importlib.reload(process)
         return
 
-    def close(self):
-        """
-        Close the NetCDF dataset.
-
-        Returns:
-            None
-        """
-        if self.dataset is not None:
+    def __exit__(self):
+        # Close dataset and remove temporary folder
+        if isinstance(self.dataset, xr.Dataset):
             self.dataset.close()
-
-
-class Process:
-    def __init__(self, parent: CL61Processor):
-        self.CL61_parent = parent
-
-    def mask_noise(self, window_size=[7, 7]):
-        """
-        Process noise in the data by searching for negative values for beta_attenuation
-        and creates new variables with suffix _clean in the dataset and a 'noise_mask'
-
-        Args:
-            window_size (int or list of int): size of the window for noise removal padding around null value.
-        Returns:
-            None
-        """
-        dataset = self.CL61_parent.dataset
-        # Compute non-null masks
-        beta_att_non_null_mask = noise_processing.non_noise_windows_mask(dataset,
-                                                                         variable_name='beta_att',
-                                                                         window_size=window_size,
-                                                                         analysis_type='non-negative')
-
-        linear_depol_non_null_mask = noise_processing.non_noise_windows_mask(dataset,
-                                                                             variable_name='linear_depol_ratio',
-                                                                             window_size=[1, 3],
-                                                                             analysis_type='range')
-
-        final_mask = beta_att_non_null_mask & linear_depol_non_null_mask
-        to_interpolate_mask = beta_att_non_null_mask & ~linear_depol_non_null_mask
-
-        print(
-            'The results are stored under new variable: beta_att_clean, linear_depol_ratio_clean, noise mask and to_interpolate_mask')
-        self.CL61_parent.dataset['beta_att_clean'] = xr.where(final_mask, dataset['beta_att'], np.nan)
-        self.CL61_parent.dataset['linear_depol_ratio_clean'] = xr.where(final_mask, dataset['linear_depol_ratio'],
-                                                                        np.nan)
-        self.CL61_parent.dataset['noise_mask'] = xr.DataArray(data=final_mask, dims=['time', 'range'])
-        self.CL61_parent.dataset['to_interpolate_mask'] = xr.DataArray(data=to_interpolate_mask, dims=['time', 'range'])
-
-        return
-
-    def perform_kmeans_clustering(self, variable_as_features=['beta_att', 'linear_depol_ratio'], weights=None,
-                                  cluster_number=8, kmean_method='k-means++',
-                                  plot_result=True, save_fig=True):
-        """
-        Perform k-means clustering on the dataset.
-
-        Parameters:
-        - variable_as_features: List of variable names to use as features (default: ['beta_att', 'linear_depol_ratio']).
-        - weights: List of weights for feature columns (default: None).
-        - cluster_number: The number of clusters (default: 8).
-        - plot_result: If True, visualize the results (default: True).
-        - kmean_method: The K-means initialization method (default: 'k-means++').
-        - plot_result (Boolean): If results should be directly plotted or not
-        - save_fig (Boolean or str): If True figure plotted should be saved. If str -> figure saved with name as given.
-
-        Returns:
-        - None
-        """
-
-        # Implement classification logic
-        classification_result_array = classification.K_means_classifier(
-            dataset=self.CL61_parent.dataset,
-            variable_as_features=variable_as_features,
-            weights=weights,
-            cluster_N=cluster_number,
-            plot_result=plot_result,
-            kmean_method=kmean_method,
-            save_fig=save_fig
-        )
-
-        new_var = 'kmean_clusters'
-        print(f'saving results under following{new_var}')
-        self.CL61_parent.dataset[new_var] = xr.DataArray(data=classification_result_array.T, dims=['time', 'range'])
-        return
-
-    def classify_clusters(self,
-                          cluster_variable='kmean_clusters'):
-        '''
-        Classifies each cluster of cluster_variable array based on determined thresholds
-        '''
-        class_results, new_class_xarray = classification.threshold_classify_clusters(dataset=self.CL61_parent.dataset,
-                                                                                     cluster_variable=cluster_variable)
-        classified_cluster_var_name = 'classified_clusters'
-        self.CL61_parent.dataset[classified_cluster_var_name] = new_class_xarray
-        self.CL61_parent.cluster_class_map = class_results
-        print(f" Successful cluster classification stored in dataset under {classified_cluster_var_name}")
-        return
-
-    def classify_elementwise(self,
-                             variable_names=['beta_att_clean', 'linear_depol_ratio_clean']):
-        '''
-        Classifies directly element wise based on thresholds focused on the variables in question
-        '''
-        new_var_name = 'classified_elements'
-        self.CL61_parent.dataset[new_var_name] = classification.classify_dataset(self.CL61_parent.dataset,
-                                                                                 variable_names=variable_names)
-        print(f" Successful pixel-wise classification stored in dataset under {new_var_name}")
-        return
+        shutil.rmtree(self.temp_folder)
