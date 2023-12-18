@@ -200,7 +200,8 @@ def colormesh_classification_results(dataset, classified_var_name = 'classified'
     return plot
 
 
-def plot_classified_colormesh(classified_array, 
+def plot_classified_colormesh_old(classified_array,
+                              config_dictionary,
                               time_array,
                               range_array,
                               ylims = [0,5000],
@@ -238,4 +239,40 @@ def plot_classified_colormesh(classified_array,
     # Show the plot
     if (fig==None)|(ax==None):
         plt.show()
+    return fig, ax
+
+    
+def plot_classified_timeserie(classified_array, time_array, range_array, config, ylims=[0, 10000], fig=None, ax=None):
+    '''Plots the classifed array with id corresponding to class naem as given in config file'''
+    # Get necessary values from the config file
+    category_colors = [category['color'] for category in config['classes']]
+    category_ids = [category['class_id'] for category in config['classes']]
+    classification_cmap = ListedColormap(category_colors)
+
+    num_categories = len(config['classes'])
+
+    if (fig is None) or (ax is None):
+        fig, ax = plt.subplots(1, 1, figsize=(10, 5))  # Set the figure size as needed
+
+    # Create a colored mesh plot using the custom colormap
+    plot = ax.pcolormesh(time_array, range_array, classified_array,
+                         cmap=classification_cmap, vmin=0, vmax=num_categories, shading='nearest')
+
+    # Add a colorbar with discrete color labels
+    cbar = fig.colorbar(plot, cmap=classification_cmap)
+    cbar.set_ticks([i+0.5 for i in category_ids])
+    cbar.set_ticklabels([f"{category['class_id']}: {category['class_name']}" for category in config['classes']])
+
+    # Set labels for x and y axes (if needed)
+    ax.set_ylim(ylims)
+    ax.set_xlabel('Range')
+    ax.set_ylabel('Time')
+
+    # Set the title of the plot (if needed)
+    ax.set_title('Classification Results')
+
+    # Show the plot
+    if (fig is None) or (ax is None):
+        plt.show()
+    
     return fig, ax

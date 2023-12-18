@@ -1,0 +1,117 @@
+{
+    "classes": [
+      {
+        "class_id": 0,
+        "class_name": "clear",
+        "beta_attenuation_range": [1e-13, 1e-6],
+        "linear_depolarisation_ratio_range": [0, 1],
+        "color": "#c3fff4"
+      },
+      {
+        "class_id": 1,
+        "class_name": "Smoke/Pollution/Marine",
+        "beta_attenuation_range": [1e-6, 5e-6],
+        "linear_depolarisation_ratio_range": [0, 0.1],
+        "color": "#a9cac4"
+      },
+      {
+        "class_id": 2,
+        "class_name": "Dust/Marine/Smoke mix",
+        "beta_attenuation_range": [1e-6, 5e-6],
+        "linear_depolarisation_ratio_range": [0.1, 0.2],
+        "color": "#b092b7"
+      },
+      {
+        "class_id": 3,
+        "class_name": "Desert dust",
+        "beta_attenuation_range": [1e-6, 5e-6],
+        "linear_depolarisation_ratio_range": [0.2, 0.3],
+        "color": "#d0bf88"
+      },
+      {
+        "class_id": 4,
+        "class_name": "Aerosol-like solid p. (Volcanic ash)",
+        "beta_attenuation_range": [1e-6, 5e-6],
+        "linear_depolarisation_ratio_range": [0.3, 0.4],
+        "color": "#a07648"
+      },
+      {
+        "class_id": 5,
+        "class_name": "Low scattering solid particles",
+        "beta_attenuation_range": [1e-6, 5e-6],
+        "linear_depolarisation_ratio_range": [0.4, 1],
+        "color": "#a07648"
+      },
+      {
+        "class_id": 6,
+        "class_name": "Low density liquid dominated",
+        "beta_attenuation_range": [5e-6, 5e-5],
+        "linear_depolarisation_ratio_range": [0, 0.1],
+        "color": "#7e95e0"
+      },
+      {
+        "class_id": 7,
+        "class_name": "Low density mixed phased",
+        "beta_attenuation_range": [5e-6, 5e-5],
+        "linear_depolarisation_ratio_range": [0.05, 0.2],
+        "color": "#7ee0b1"
+      },
+      {
+        "class_id": 8,
+        "class_name": "Low density snow",
+        "beta_attenuation_range": [5e-6, 5e-5],
+        "linear_depolarisation_ratio_range": [0.2, 0.3],
+        "color": "#c1e07e"
+      },
+      {
+        "class_id": 9,
+        "class_name": "Low density ice crystals",
+        "beta_attenuation_range": [5e-6, 5e-5],
+        "linear_depolarisation_ratio_range": [0.3, 0.5],
+        "color": "#e09e7e"
+      },
+      {
+        "class_id": 10,
+        "class_name": "Low density graupel",
+        "beta_attenuation_range": [5e-6, 5e-5],
+        "linear_depolarisation_ratio_range": [0.5, 1],
+        "color": "#e07e7e"
+      },
+      {
+        "class_id": 11,
+        "class_name": "High density liquid dominated",
+        "beta_attenuation_range": [5e-5, 1],
+        "linear_depolarisation_ratio_range": [0, 0.1],
+        "color": "#4759a2"
+      },
+      {
+        "class_id": 12,
+        "class_name": "High density mixed phased",
+        "beta_attenuation_range": [5e-5, 1],
+        "linear_depolarisation_ratio_range": [0.05, 0.2],
+        "color": "#d18200"
+      },
+      {
+        "class_id": 13,
+        "class_name": "High density snow",
+        "beta_attenuation_range": [5e-5, 1],
+        "linear_depolarisation_ratio_range": [0.2, 0.3],
+        "color": "#d1b600"
+      },
+      {
+        "class_id": 14,
+        "class_name": "High density ice crystals",
+        "beta_attenuation_range": [5e-5, 1],
+        "linear_depolarisation_ratio_range": [0.3, 0.5],
+        "color": "#d8724e"
+      },
+      {
+        "class_id": 15,
+        "class_name": "High density graupel",
+        "beta_attenuation_range": [5e-5, 1],
+        "linear_depolarisation_ratio_range": [0.5, 1],
+        "color": "#b94545"
+      }
+    ]
+  }
+  

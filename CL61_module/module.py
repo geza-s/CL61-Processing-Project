@@ -26,6 +26,7 @@ import seaborn as sns
 # Functions implemented for data processing and visualization
 from CL61_module import visualization
 from CL61_module import process
+from CL61_module import classification
 
 from .utils import load_config
 
@@ -41,7 +42,7 @@ class CL61Processor:
     def __init__(self, folder_path,
                  start_datetime=None, end_datetime=None,
                  specific_filename=None,
-                 config_path='config_classification.yml',
+                 config_path='config_classification.json',
                  transfer_files_locally = False,
                  parallel_computing = True,
                  dataset = None):
@@ -49,9 +50,10 @@ class CL61Processor:
         # Folder paths
         self.folder_path = folder_path
         self.module_dir = os.path.dirname(__file__)
-        # Congig elements 
-        self.config_filepath = config_path
-        self.classification_config = self.load_config(config_path)
+
+        # Config filepath 
+        self.config_path = config_path
+
         # Dataset and time elements
         self.dataset = dataset
         self.file_time_mapping = None
@@ -68,9 +70,13 @@ class CL61Processor:
         self._set_metadata()
 
         # Takes the major subclasses
-        self.plot = visualization.PlotCL61(self.dataset)
-        self.process = process.ProcessCL61(self)
+        self.plot = visualization.PlotCL61(dataset = self.dataset, parent = self)
+        self.process_noise = process.NoiseProcessor(parent = self)
+        self.classification = classification.CL61Classifier(parent = self)
 
+    def _set_metadata(self):
+        self.dataset['beta_att'].attrs['name'] = 'attenuated backscatter coefficient'
+        self.dataset['linear_depol_ratio'].attrs['name'] = 'linear depolarisation ratio'
 
     def _load_data(self, specific_filename, transfer_files_locally, parallel_computing):
         if specific_filename:
@@ -85,11 +91,7 @@ class CL61Processor:
                 self.get_filepaths_with_timestamps() 
 
             self.dataset = self.load_netcdf4_data_in_timeperiod(parallel_computing=parallel_computing)
-
-    def _set_metadata(self):
-        self.dataset['beta_att'].attrs['name'] = 'attenuated backscatter coefficient'
-        self.dataset['linear_depol_ratio'].attrs['name'] = 'linear depolarisation ratio'
-
+        return
 
     def _transfer_files_locally(self, file_names_to_copy,
                                  temp_folder = None):
@@ -128,28 +130,7 @@ class CL61Processor:
         self.period_start = self.dataset['time'][0].values
         self.period_end = self.dataset['time'][-1].values
         self.file_time_mapping = None
-
-
-    def load_config(self, config_path):
-        '''
-        Loads a yml config file from given relative or absolute config file path
-        Args:
-            config_path: relative or absolute config file path
-        '''
-        # Check if the given config_path is an absolute path
-        if os.path.isabs(config_path):
-            if os.path.exists(config_path):
-                return load_config(config_path)
-            else:
-                raise ValueError("Config file does not exist: " + config_path)
-        else:
-            # Join config_path with module_dir
-            config_full_path = os.path.join(self.module_dir, config_path)
-            if os.path.exists(config_full_path):
-                self.config_filepath = config_full_path  # just update the filepath to absolute path
-                return load_config(config_full_path)
-            else:
-                raise ValueError("Config file does not exist in module_dir: " + config_full_path)
+    
 
     def get_filepaths_with_timestamps(self, period_start = None, period_end=None):
         """
@@ -233,6 +214,38 @@ class CL61Processor:
 
         return subset_processor
 
+    def auto_process(self, plot_results = True, clustering_method = 'kmean', range_limits = [0,10000]):
+        ''' Runs automated pipeline based on default values'''
+
+        # Show timeserie before noise removal
+        if plot_results:
+            self.plot.show_timeserie(range_limits=range_limits)
+
+        # Remove noise and show results afterwards
+        self.process_noise.mask_noise()
+        if plot_results:
+            self.plot.show_timeserie(variable_names=['beta_att_clean', 'linear_depol_ratio_clean'], range_limits=range_limits)
+        
+        # Cluster data then classify and show results
+        if clustering_method == 'kmean':
+            self.classification.Kmeans_clustering(cluster_N=16, plot_result=plot_results, plot_range=range_limits)
+            self.classification.classify_clusters(cluster_variable='kmean_clusters')
+        elif clustering_method == 'dbscan':
+            self.classification.dbscan_clustering(dbscan_eps=0.3, plot_result=plot_results, plot_range=range_limits)
+            self.classification.classify_clusters(cluster_variable='dbscan_clusters')
+        else:
+            raise(ValueError(f'clustering_method should be of {"kmean" or "dbscan"}; given value {clustering_method} not supported'))
+        
+        if plot_results:
+            self.plot.show_classified_timeserie(classified_variable='classified_clusters', ylims = range_limits)
+
+        # classify dirctly element-wise and show results
+        self.classification.classify_elementwise(beta_attenuation_varname='beta_att_clean',
+                                                    linear_depol_ratio_varname='linear_depol_ratio_clean')
+        if plot_results:
+            self.plot.show_classified_timeserie(classified_variable='classified_elements', ylims = range_limits)
+        return
+        
     def reload_modules(self):
         importlib.reload(visualization)
         importlib.reload(process)

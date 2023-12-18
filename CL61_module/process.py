@@ -1,17 +1,17 @@
 # necessary libraries
 import numpy as np
+import pandas as pd
+import scipy.signal as signal
 import xarray as xr
 
 # function for noise processing and classification
 from . import process_noise as p_noise
 from . import classification
 
-class ProcessCL61:
+class NoiseProcessor:
     def __init__(self, parent):
         self.CL61_parent = parent
         self.dataset = parent.dataset
-        
-        self.clustering = classification.ClusteringModule(self)
 
     def mask_noise(self, beta_att_window_size=[7, 7], linear_depol_windows_size = [1,3]):
         """
@@ -24,17 +24,19 @@ class ProcessCL61:
         Returns:
             None
         """
-        dataset = self.CL61_parent.dataset
-        # Compute non-null masks
-        beta_att_non_null_mask = p_noise.non_noise_windows_mask(dataset,
-                                                                         variable_name='beta_att',
-                                                                         window_size=beta_att_window_size,
-                                                                         analysis_type='non-negative')
+        # Ref to dataset
+        dataset = self.dataset
 
-        linear_depol_non_null_mask = p_noise.non_noise_windows_mask(dataset,
-                                                                             variable_name='linear_depol_ratio',
-                                                                             window_size=linear_depol_windows_size,
-                                                                             analysis_type='range')
+        # Compute non-null masks
+        beta_att_non_null_mask = non_noise_windows_mask(dataset,
+                                                            variable_name='beta_att',
+                                                            window_size=beta_att_window_size,
+                                                            analysis_type='non-negative')
+
+        linear_depol_non_null_mask = non_noise_windows_mask(dataset,
+                                                                variable_name='linear_depol_ratio',
+                                                                window_size=linear_depol_windows_size,
+                                                                analysis_type='range')
 
         final_mask = beta_att_non_null_mask & linear_depol_non_null_mask
         to_interpolate_mask = beta_att_non_null_mask & ~linear_depol_non_null_mask
@@ -112,65 +114,117 @@ class ProcessCL61:
 
         return
 
-    def perform_kmeans_clustering(self, variable_as_features=['beta_att', 'linear_depol_ratio'], weights=None,
-                                  cluster_number=8, kmean_method='k-means++',
-                                  plot_result=True, save_fig=True):
-        """
-        Perform k-means clustering on the dataset.
 
-        Parameters:
-        - variable_as_features: List of variable names to use as features (default: ['beta_att', 'linear_depol_ratio']).
-        - weights: List of weights for feature columns (default: None).
-        - cluster_number: The number of clusters (default: 8).
-        - plot_result: If True, visualize the results (default: True).
-        - kmean_method: The K-means initialization method (default: 'k-means++').
-        - plot_result (Boolean): If results should be directly plotted or not
-        - save_fig (Boolean or str): If True figure plotted should be saved. If str -> figure saved with name as given.
+def rolling_window_all_positive(dataset,
+                                variable_name = 'beta_att',
+                                window_size = [5,5],
+                                border_padding = None):
+    """
+    Checks if all elements in a moving window are positive values
 
-        Returns:
-        - None
-        """
+    Parameters:
+    - dataset: Xarray dataset of float-type non null values
+    - variable_name: name of the variable in dataset on which to mask
+    - window_size: Tuple (rows, cols) specifying the size of the moving window.
+    - border_padding: Padding over border transformed to value of border (TO IMPLEMENT)
 
-        # Implement classification logic
-        classification_result_array = classification.K_means_classifier(
-            dataset=self.CL61_parent.dataset,
-            variable_as_features=variable_as_features,
-            weights=weights,
-            cluster_N=cluster_number,
-            plot_result=plot_result,
-            kmean_method=kmean_method,
-            save_fig=save_fig
-        )
+    Returns:
+    - out_mask: 2D xarray boolean array of same shape as input xarray
+    """
+    if type(window_size) == int:
+        window_size = (window_size, window_size)
 
-        new_var = 'kmean_clusters'
-        print(f'saving results under following{new_var}')
-        self.CL61_parent.dataset[new_var] = xr.DataArray(data=classification_result_array.T, dims=['time', 'range'])
-        self.CL61_parent.dataset[new_var].attrs['name'] = 'K-mean clusters'
-        self.CL61_parent.dataset[new_var].attrs['description'] = f'{cluster_number} K-mean clusters based on the following variables as features: {variable_as_features}'
-        return
+    # boolean array (as int 0,1) if value is >0
+    positive_values = (dataset[variable_name] > 0).astype(int)
 
-    def classify_clusters(self,
-                          cluster_variable='kmean_clusters'):
-        '''
-        Classifies each cluster of cluster_variable array based on determined thresholds
-        '''
-        class_results, new_class_xarray = classification.threshold_classify_clusters(dataset=self.CL61_parent.dataset,
-                                                                                     cluster_variable=cluster_variable)
-        classified_cluster_var_name = 'classified_clusters'
-        self.CL61_parent.dataset[classified_cluster_var_name] = new_class_xarray
-        self.CL61_parent.dataset[classified_cluster_var_name].attrs['name'] = 'classified clusters'
-        self.CL61_parent.cluster_class_map = class_results
-        print(f" Successful cluster classification stored in dataset under {classified_cluster_var_name}")
-        return
+    # Rolling window sum of all boolean as integer value
+    min_elements_for_window = max([window_size[0]//2*window_size[1]//2,1])
+    positive_values_window_sum = positive_values.rolling(time=window_size[0], range = window_size[1], center=True, min_periods=min_elements_for_window).reduce(np.sum)
+    
+    # Check if all elements in window as True (in range)
+    window_element_numbers = window_size[0]*window_size[1]
+    mask_positive_value_windows = positive_values_window_sum==window_element_numbers
 
-    def classify_elementwise(self,
-                             variable_names=['beta_att_clean', 'linear_depol_ratio_clean']):
-        '''
-        Classifies directly element wise based on thresholds focused on the variables in question
-        '''
-        new_var_name = 'classified_elements'
-        self.CL61_parent.dataset[new_var_name] = classification.classify_dataset(self.CL61_parent.dataset,
-                                                                                 variable_names=variable_names)
-        self.CL61_parent.dataset[new_var_name].attrs['name'] = 'point-wise classification'
-        print(f" Successful pixel-wise classification stored in dataset under {new_var_name}")
-        return
+    return mask_positive_value_windows
+
+def rolling_window_in_range_mask(dataset,
+                             variable_name = 'linear_depol_ratio',
+                             window_size = [5,5],
+                             value_range = [0,1],
+                             border_padding = None):
+    """
+    Checks if all elements in a moving window are inside given range
+
+    Parameters:
+    - dataset: Xarray dataset of continuous and non null values
+    - variable_name: name of the variable in dataset on which to mask
+    - window_size: Tuple (rows, cols) specifying the size of the moving window.
+    - value_range: Range of values to mask as "in range"
+    - border_padding: Padding over border transformed to value of border
+
+    Returns:
+    - out_mask: 2D xarray boolean array of same shape as input xarray
+    """
+    if type(window_size) == int:
+        window_size = (window_size, window_size)
+
+    # boolean array (as int 0,1) if in range
+    in_range = np.logical_and(dataset[variable_name] > value_range[0], dataset[variable_name] < value_range[1]).astype(int)
+
+    # Rolling window sum of all boolean in range as integer value
+    min_elements_for_window = max([window_size[0]//2*window_size[1]//2,1])
+    in_range_window_sum = in_range.rolling(time=window_size[0], range = window_size[1], center=True, min_periods=min_elements_for_window).reduce(np.sum)
+    
+    # Check if all elements in window as True (in range)
+    window_element_numbers = window_size[0]*window_size[1]
+    mask_in_range = in_range_window_sum==window_element_numbers
+
+    return mask_in_range
+
+def create_kernel(window_size):
+    '''
+    Create a losange kernel to encompass all possible windows in which element (i,j) could be
+    '''
+    kernel = np.zeros(window_size, dtype=int)
+    center_time, center_range = np.array(window_size) // 2
+    size_time, size_range = window_size
+    time_values = np.arange(0, size_time)
+    range_values = np.arange(0, size_range) / size_range * size_time
+
+    time_mesh, range_mesh = np.meshgrid(time_values, range_values)
+    kernel = np.array(np.abs(time_mesh - center_time) + np.abs(range_mesh - center_time) <= center_time).astype(int)
+
+    return kernel
+
+def check_kernel_correlation(boolean_mask_array, kernel):
+    '''
+    Correlate a boolean mask array with the given kernel and check if
+    '''
+    correlated_result = signal.correlate2d(boolean_mask_array, kernel.T, mode='same', boundary='symm', fillvalue=0)
+    non_noise_mask = correlated_result > 0
+
+    return non_noise_mask
+
+def non_noise_windows_mask(dataset, variable_name, window_size, analysis_type = 'non-negative', value_range=[0,1]):
+    '''
+    Checks not only if moving window around element (i.j) has only positive values
+    but if the upper/lower/Right/Left windows are non negative also
+    ''' 
+    
+    if type(window_size) == int:
+        window_size = (window_size, window_size)
+    
+    if analysis_type == 'non-negative':
+        no_noise_mask = rolling_window_all_positive(dataset=dataset, variable_name=variable_name,
+                                                     window_size=window_size, border_padding=None).astype(int)
+    elif analysis_type  == 'range':
+        no_noise_mask = rolling_window_in_range_mask(dataset=dataset, variable_name=variable_name,
+                                                      window_size=window_size, value_range=value_range, border_padding=None).astype(int)
+    else:
+        raise TypeError("analysis_type should be one of the following ['non-negative', 'range']")
+    
+    
+    kernel = create_kernel(window_size)
+    non_noise_mask = check_kernel_correlation(no_noise_mask, kernel)
+
+    return non_noise_mask

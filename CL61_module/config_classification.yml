@@ -1,4 +1,5 @@
 # classification_thresholds.yml
+
 log10_beta_attenuation_thresholds:
   0:
     - -10

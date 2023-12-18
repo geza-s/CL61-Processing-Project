@@ -1,3 +1,6 @@
+# File management
+import os
+
 # array management
 import numpy as np
 import pandas as pd
@@ -12,7 +15,7 @@ import seaborn as sns
 import cmcrameri.cm as cmc
 
 from .classification_vizalization import *
-from .utils import filename_to_save
+from .utils import filename_to_save, load_config
 
 COLOR_MAP_NAME = 'cmc.batlow'
 COLOR_MAP = cmc.batlow  # type: ignore
@@ -37,15 +40,22 @@ COLOR_CODES_BLUE_YEL = ['#03245C', '#D69444']
 
 class PlotCL61:
     
-    def __init__(self, dataset):
+    def __init__(self, dataset = None, parent = None):
+        # Initialize values from input so It can be called indep of main module
         self.dataset = dataset
+        self.parent = parent
+        # If called from a parent class (CL61 module main class)
+        if parent is not None:
+            self.parent = parent
+            self.dataset = parent.dataset
+
 
     def show_timeserie(self,
                         variable_names=['beta_att', 'linear_depol_ratio'],
                         label_names = None,
                         value_ranges=[[1e-7, 1e-4],[0,1]],
                         range_limits=None,
-                        scales=['log', 'linear'],
+                        log_scale=[True, False],
                         color_map="cmc.batlow",
                         fig = None, axs = None,
                         save_fig = False,
@@ -57,8 +67,9 @@ class PlotCL61:
         subset = self.dataset.sel(range = slice(*range_limits))
 
         # Check variables to plot
-        if isinstance(variable_names,str):
+        if isinstance(variable_names, str):
             variable_names = [variable_names]
+        # Number of variables
         L = len(variable_names)
 
         # Plot 
@@ -68,7 +79,7 @@ class PlotCL61:
             fig = plt.figure(figsize = (12, L*3 + 1))
 
         for i, var_name in enumerate(variable_names):
-
+            
             # Get ax
             try:
                 ax = axs[i]
@@ -79,7 +90,7 @@ class PlotCL61:
             try: vmin, vmax = value_ranges[i]
             except: vmin, vmax = None, None
 
-            if scales[i] == 'log':
+            if log_scale[i]:
                 vmin = np.log10(vmin) if vmin != None  else vmin
                 vmax = np.log10(vmax) if vmax != None  else vmax
                 im = np.log10(subset[var_name]).plot.imshow(x='time', y='range', vmin=vmin, vmax=vmax, ax = ax, cmap=color_map)
@@ -179,28 +190,37 @@ class PlotCL61:
         return  fig, [ax,ax2]
 
     def plot_histogram(self,
-                   variable_1='beta_att_clean',
-                   variable_2='linear_depol_ratio_clean',
-                   classes_variable=None,
-                   variable_1_log=True,
-                   variable_2_log=False,
-                   count_log=False,
-                   colormap=COLOR_MAP,
-                   save_fig=True,
-                   fig=None,
-                   ax=None):
-
+                        variables=['beta_att_clean', 'linear_depol_ratio_clean'],
+                        classes_variable=None,
+                        variable_logscales=[True, False],
+                        count_log=False,
+                        colormap=COLOR_MAP,
+                        save_figure=True,
+                        fig=None,
+                        ax=None):
+                
+        # dataset ref
         dataset = self.dataset
 
-        if fig is None:
-            fig = plt.figure()
+        # Check inputs and adapt if possible
+        if isinstance(variables, str):
+            variables = [variables]
+        if isinstance(variable_logscales, bool):
+            variable_logscales =[variable_logscales]
+        if len(variable_logscales)<len(variables):
+            raise(ValueError("variable_logscale should be specified for each variable given (same length)"))
 
-        if ax is None:
-            ax = fig.add_subplot(111)
-
-        if variable_2 is None:
+        if len(variables)==1:
             # 1D histogram
+            variable_1 = variables[0]
             x = dataset[variable_1].values.flatten()
+            
+            if fig is None:
+                fig = plt.figure(figsize=(8,5))
+
+            if ax is None:
+                ax = fig.add_subplot(111)
+            
             if classes_variable:
                 c = dataset[classes_variable].values.flatten()
                 df = pd.DataFrame({variable_1: x, classes_variable: c})
@@ -208,7 +228,7 @@ class PlotCL61:
                 c = None
                 df = pd.DataFrame({variable_1: x})
 
-            if variable_1_log:
+            if variable_logscales[0]:
                 df[variable_1] = np.log10(df[variable_1])
 
             if classes_variable:
@@ -223,37 +243,41 @@ class PlotCL61:
                 ax.set_title(f'1D Histogram of {variable_1}')
                 ax.set_xlabel(variable_1)
                 ax.set_ylabel('Count (log scale)' if count_log else 'Count')
-                ax.hist(df[variable_1], log=count_log)
+                sns.histplot(data=df, x=variable_1, edgecolor=".3",
+                            linewidth=.5, log_scale=count_log, ax=ax)
 
-        else:
+            if save_figure:
+                plt.savefig(filename_to_save(dataset, save_figure, suffix=f'hist_{variable_1}'), dpi=300)
+            
+        elif len(variables)==2:
             # 2D histogram
-            if (variable_1 is None) or (variable_2 is None):
-                raise ValueError('Both variables are required for 2D histogram.')
+            variable_1, variable_2 = variables
 
-            if ax is None:
-                ax = fig.add_subplot(111)
-
+            # Flatten values for binning (histograms)
             x = dataset[variable_1].values.flatten()
             y = dataset[variable_2].values.flatten()
-            if variable_1_log:
-                x = np.log10(x)
-            if variable_2_log:
+            
+            # apply scale transformation
+            if variable_logscales[0]:
+                x = np.log10(x)            
+            if variable_logscales[1]:
                 y = np.log10(y)
+                
             df = pd.DataFrame({variable_1: x, variable_2: y})
 
-            g = sns.JointGrid(data=df, x=variable_1, y=variable_2, height=8, ratio=4)
-            hb = g.ax_joint.hexbin(x, y, gridsize=500, cmap=colormap, bins=count_log)
-
+            g = sns.JointGrid(data=df, x=variable_1, y=variable_2, height=7, ratio=4)
+            hb = g.ax_joint.hexbin(x, y, gridsize=300, cmap=colormap, bins='log')
+                
             cax = plt.gcf().add_axes([1.05, 0.1, 0.05, 0.7])
             cbar = plt.colorbar(hb, cax=cax)
 
-            sns.histplot(data=df, x=variable_1, ax=g.ax_marg_x, color=colormap, cbar_kws={"edgecolor": None})
-            sns.histplot(data=df, y=variable_2, ax=g.ax_marg_y, color=colormap, orientation='horizontal', cbar_kws={"edgecolor": None})
+            sns.histplot(data=df, x=variable_1, ax=g.ax_marg_x, cbar_kws={"edgecolor": None})
+            sns.histplot(y=y, ax=g.ax_marg_y, cbar_kws={"edgecolor": None})
 
-        if save_fig:
-            plt.savefig(filename_to_save(dataset, save_fig, suffix=f'hist_{variable_1}_vs_{variable_2}'), dpi=300)
-
-        plt.show()
+            if save_figure:
+                plt.savefig(filename_to_save(dataset, save_figure, suffix=f'hist_{variable_1}_vs_{variable_2}'), dpi=300)
+        else:
+            raise(ValueError("More than 2 variables not supported"))
 
         return fig, ax
 
@@ -295,40 +319,17 @@ class PlotCL61:
         Returns:
             ax, ax2 (matplotlib axis objects): The primary and secondary axes used in the plot.
         """
-        # get dataset
-        dataset = self.dataset
 
-        # Handle time_period input
-        # Handle time_period input
-        if time_period is None:
-            time_period = "Entire Period"
-        elif isinstance(time_period, str):
-            time_period = [time_period]
-        elif not isinstance(time_period, list) or len(time_period) != 2:
-            raise ValueError("time_period should be a string, a list of two datetime strings, or None.")
-
-        # Select data based on time_period
-        if len(time_period) == 2:
-            subset = dataset.sel(time=slice(time_period[0], time_period[1])).mean(dim='time')
-        else:
-            subset = dataset.sel(time=time_period[0], method="nearest")
-
-        # Get time period wished
-        # if time_period:
-        #     if isinstance(time_period, str):
-        #         subset = dataset.sel(time=time_period, method="nearest")
-        #     elif isinstance(time_period, list):
-        #         if len(time_period) > 2:
-        #             raise ValueError(f"Expected max 2 values (start time/date, end time/date) but got {len(time_period)}")
-        #         subset = dataset.sel(time=slice(time_period[0], time_period[1])).mean(dim='time')
-        #     else:
-        #         raise TypeError(f"Expected time_period to be of type str or list, but got {type(time_period)}")
-        # else:
-        #     subset = dataset.mean(dim='time')
+        # Take time subset:
+        subset = get_xarray_subset_time_range(time_period=time_period, dataset=self.dataset)
 
         # Get variables
-        beta_atts = subset[var_names[0]]
-        lin_depols = subset[var_names[1]]
+        if 'time' in subset.dims:
+            beta_atts = subset[var_names[0]].mean(dim='time', skipna=True)
+            lin_depols = subset[var_names[1]].mean(dim='time', skipna=True)
+        else:
+            beta_atts = subset[var_names[0]]
+            lin_depols = subset[var_names[1]]
         heights = subset['range']
 
         # Create a figure and suplot 
@@ -349,6 +350,7 @@ class PlotCL61:
         ax.set_xlim(var_xlims[0])
 
         ax.tick_params(axis = 'x', labelcolor = plot_colors[0])
+        
         # Plot the second variable with a linear x-axis on a separate axis
         ax2 = ax.twiny()
         ax2.tick_params(axis='x', labelcolor=plot_colors[1])
@@ -369,7 +371,7 @@ class PlotCL61:
         plt.ylim(range_limits)
 
         if save_fig:
-            filepath = filename_to_save(dataset, save_fig, suffix='vprofile')
+            filepath = filename_to_save(subset, save_fig, suffix='vprofile')
             print(f'Saved figure to {filepath}')
             plt.savefig(filepath, bbox_inches='tight', dpi=fig_dpi)
         
@@ -400,8 +402,10 @@ class PlotCL61:
         if comparison == 'variable':
             for i, var_names in enumerate([var_names_1, var_names_2]):
                 axs[i], ax_twin = self.vertical_profile(
-                    time_period=time_period,
                     var_names=var_names,
+                    time_period=time_period,
+                    xlabel1=var_names[0],
+                    xlabel2=var_names[1],
                     range_limits=range_limits,
                     fig = fig,
                     ax=axs[i]
@@ -413,8 +417,10 @@ class PlotCL61:
 
             for i, time in enumerate(time_period):
                 axs[i], ax_twin = self.vertical_profile(
-                    time_period=time,
                     var_names=var_names_1,
+                    time_period=time,
+                    xlabel1=var_names_1[0],
+                    xlabel2=var_names_1[1],
                     range_limits=range_limits,
                     fig = fig,
                     ax=axs[i]
@@ -425,7 +431,7 @@ class PlotCL61:
 
         if save_fig:
             filepath = filename_to_save(
-                dataset=self.dataset.sel(time=time_period, method="nearest"),
+                dataset=get_xarray_subset_time_range(time_period=time_period, dataset=self.dataset),
                 save_name=save_fig,
                 suffix='comp_profiles'
             )
@@ -436,7 +442,90 @@ class PlotCL61:
 
         return
     
-# Utility functions
+    def show_classified_timeserie(self, classified_variable = 'classified_clusters',
+                                ylims=[0, 10000], fig=None, ax=None):
+        '''Plots the classifed array with id corresponding to class naem as given in config file'''
+
+        config = self.parent.classification.config
+        
+        # Get necessary values from the config file for colors
+        category_colors = [category['color'] for category in config['classes']]
+        category_ids = [category['class_id'] for category in config['classes']]
+        classification_cmap = ListedColormap(category_colors)
+        num_categories = len(config['classes'])
+
+        if (fig is None) or (ax is None):
+            fig, ax = plt.subplots(1, 1, figsize=(10, 5))  # Set the figure size as needed
+
+        # Create a colored mesh plot using the custom colormap
+        plot = ax.pcolormesh(self.dataset['time'], self.dataset['range'], self.dataset[classified_variable].T,
+                            cmap=classification_cmap, vmin=0, vmax=num_categories, shading='nearest')
+
+        # Add a colorbar with discrete color labels
+        cbar = fig.colorbar(plot, cmap=classification_cmap)
+        cbar.set_ticks([i+0.5 for i in category_ids])
+        cbar.set_ticklabels([f"{category['class_id']}: {category['class_name']}" for category in config['classes']])
+
+        # Set labels for x and y axes (if needed)
+        ax.set_ylim(ylims)
+        ax.set_xlabel('Range')
+        ax.set_ylabel('Time')
+
+        # Set the title of the plot (if needed)
+        ax.set_title('Classification Results')
+
+        # Show the plot
+
+        plt.show()
+        
+        return fig, ax
+
+# Utility functions ------------------------------------------------------------------------------
+
+def get_xarray_subset_time_range(time_period, dataset):
+    ''' Checks for the given time period and returns a subset corresponding to the time period.
+    Arguments:
+    time_period: str or a list of 2 str referring to time.
+    dataset: xarray dataset with 'time' dimension
+    '''
+    # Validate the input dataset
+    if 'time' not in dataset.dims:
+        raise ValueError("The dataset must have a 'time' dimension.")
+
+    # Handle time_period input
+    time_range = [dataset['time'][0].values, dataset['time'][-1].values]
+
+    if time_period is None:
+        return dataset
+    
+    elif isinstance(time_period, str):
+        time_period = [time_period]
+    
+    elif not isinstance(time_period, list) or len(time_period) > 2:
+        raise ValueError("time_period should be a string, a list of max two datetime strings, or None.")
+
+    # Check if time is in the time range
+    if len(time_period) == 2:
+        start_time, end_time = np.datetime64(time_period[0]), np.datetime64(time_period[1])
+        if start_time < time_range[0] or end_time > time_range[1]:
+            raise ValueError("Time period {} to {} is outside the dataset's time range {} to {}."
+                             .format(start_time, end_time, np.datetime_as_string(time_range[0], unit='s'), np.datetime_as_string(time_range[1], unit='s')))
+    elif len(time_period) == 1:
+        target_time = np.datetime64(time_period[0])
+        if target_time < time_range[0] or target_time > time_range[1]:
+            raise ValueError("Time point {} is outside the dataset's time range {} to {}."
+                             .format(target_time, np.datetime_as_string(time_range[0], unit='s'), np.datetime_as_string(time_range[1], unit='s')))
+
+    # Select data based on time_period
+    if len(time_period) == 2:
+        subset = dataset.sel(time=slice(time_period[0], time_period[1]))
+    else:
+        subset = dataset.sel(time=time_period[0], method="nearest")
+
+    return subset
+
+
+
 def get_range_limits(range_limits, min_range = 0, max_range = 15000):
     """Checks and returns valid range limits
 
@@ -460,6 +549,4 @@ def get_range_limits(range_limits, min_range = 0, max_range = 15000):
         range_limits = [0, 15000]
 
     return range_limits
-
-
 

@@ -8,4 +8,3 @@ from . import visualization  # submodule to access noise processing functions
 
 # Other submodules to directly access functions of interest
 from . import classification
-from . import process_noise

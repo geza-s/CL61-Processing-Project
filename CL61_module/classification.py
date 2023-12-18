@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 import cmcrameri.cm as cmc
 
 # Import associated functions
-from .classification_vizalization import visualize_classification_featurespace_2D, visualize_cluster_results
+from .classification_vizalization import visualize_classification_featurespace_2D, visualize_cluster_results, plot_classified_timeserie
 from .utils import load_config, filename_to_save
 
 # global variables
@@ -22,108 +22,45 @@ COLOR_MAP_NAME = 'cmc.batlow'
 COLOR_MAP = cmc.batlow # type: ignore because this works
 config_classification = None 
 
-def threshold_classify_element(beta_attenuation,
-                                depolarization,
-                                log10_beta_attenuation_thresholds,
-                                linear_depolarization_thresholds):
-
-    # Classify based on beta attenuation
-    beta_attenuation_class = None
-    for label, (min_value, max_value) in log10_beta_attenuation_thresholds.items():
-        if 10**min_value <= beta_attenuation <= 10**max_value:
-            beta_attenuation_class = label
-            break
-    
-    if beta_attenuation_class == 'clear':
-        return [beta_attenuation_class, 'clear']
-    else: 
-        # Classify based on depolarization
-        depolarization_class = None
-        for label, (min_value, max_value) in linear_depolarization_thresholds.items():
-            if min_value <= depolarization <= max_value:
-                depolarization_class = label
-                break
-    
-    # Return the classification
-    if depolarization_class is not None and beta_attenuation_class is not None:
-        return [beta_attenuation_class, depolarization_class]
-    else:
-        return 'Unclassified'
-
-def threshold_classify_clusters(dataset,
-                                cluster_variable):
-
-    config_classification = load_config()
-
-    class_combination_mapping = config_classification['class_combination_mapping']
-    log10_beta_attenuation_thresholds = config_classification['log10_beta_attenuation_thresholds']
-    linear_depolarization_thresholds = config_classification['linear_depolarization_thresholds']
-
-    classification_results = {}
-    new_classified_array = dataset[cluster_variable].copy()
-
-    for old_cluster_id in np.unique(dataset[cluster_variable]):
-        if old_cluster_id == np.nan:
-            continue
-        mask_cluster = dataset[cluster_variable] == old_cluster_id
-        mean_beta = xr.where(mask_cluster, dataset['beta_att_clean'], np.nan).mean(skipna=True) #NA should not be present but making sure
-        mean_depol = xr.where(mask_cluster, dataset['linear_depol_ratio_clean'], np.nan).mean(skipna=True) # "
-
-        # Classify the element
-        labels = threshold_classify_element(mean_beta, mean_depol,
-                                             log10_beta_attenuation_thresholds,
-                                             linear_depolarization_thresholds)
-        #print(id, mean_beta.values, mean_depol.values, labels)
-        if labels == 'Unclassified':
-            element_class = 9999
+class CL61Classifier:
+    def __init__(self, parent, dataset = None, config_filepath = None):
+        if dataset:
+            # To test this class
+            self.dataset = dataset
+            self.parent = None
+            self.config = load_config(config_filepath)
         else:
-            element_class = labels[0] + labels[1]
-        
-        # Map the classification to a corrected combination label
-        classification_results[id] = [element_class, class_combination_mapping[element_class]]
-        #print(labels, classification_results[id])
+            # Usual call in CL61 module
+            self.dataset = parent.dataset
+            self.parent = parent
+            # Config elements 
+            self.config = self._load_config(parent.config_path)
 
-        # update new array with new classes
-        new_classified_array = xr.where(mask_cluster, element_class, new_classified_array)
-    
-    return classification_results, new_classified_array
-
-def classify_dataset(dataset,
-                      variable_names = ['beta_att_clean','lin_depol_ratio_clean']):
-    '''
-    Classify based on thresholds directly the whole array elements per elements
-    Parameters:
-    dataset :
-    '''
-    # Check for classification config data
-    config_classification = load_config()
-    log10_beta_attenuation_thresholds = config_classification['log10_beta_attenuation_thresholds']
-    linear_depolarization_thresholds = config_classification['linear_depolarization_thresholds']
-
-    # get directly the arrays to classifiy
-    beta_attenuation_array = dataset[variable_names[0]]
-    lin_depol_array = dataset[variable_names[1]]
-    
-    # Classify based on beta attenuation
-    calssified_result_label = xr.full_like(beta_attenuation_array, np.nan, dtype=np.double)
-    for label, (min_value, max_value) in log10_beta_attenuation_thresholds.items():
-        mask = (10**min_value <= beta_attenuation_array) & (beta_attenuation_array <= 10**max_value)
-        calssified_result_label = xr.where(mask, label, calssified_result_label)
-
-    # Classify based on depolarization
-    for label, (min_value, max_value) in linear_depolarization_thresholds.items():
-        mask = (min_value <= lin_depol_array) & (lin_depol_array <= max_value)
-        calssified_result_label = xr.where(mask, calssified_result_label+label, calssified_result_label)
-
-    return calssified_result_label
-
-
-class ClusteringModule:
-    def __init__(self, parent):
-        self.clustering_parent = parent
-        self.dataset = parent.dataset
+        # Some variables settings: name of the variables
         self.cluster_result_var = {'KMEAN' : 'kmean_clusters', 'DBSCAN':'dbscan_clusters'}
         
+    def _load_config(self, config_path):
+        '''
+        Loads a yml config file from given relative or absolute config file path
+        Args:
+            config_path: relative or absolute config file path
+        '''
+        # Check if the given config_path is an absolute path
+        if os.path.isabs(config_path):
+            if os.path.exists(config_path):
+                self.config_path = config_path
+                return load_config(config_path)
+            else:
+                raise ValueError("Config file does not exist: " + config_path)
+        else:
+            # Join config_path with module_dir
+            config_full_path = os.path.join(self.parent.module_dir, config_path)
+            if os.path.exists(config_full_path):
+                self.config_path = config_full_path # just update the filepath to absolute path
+                return load_config(config_full_path)
+            else:
+                raise ValueError("Config file does not exist in module_dir: " + config_full_path)
+
     def dataset_to_sample_feature(self,
                                variable_names=['beta_att_clean', 'linear_depol_ratio_clean', 'range'],
                                transforms=['log', 'lin', 'lin']):
@@ -171,14 +108,14 @@ class ClusteringModule:
 
         return original_feature_matrix, nan_rows, cleaned_feature_matrix
 
-    def perform_K_means(self, cluster_N=8,
-                        variable_as_features=['beta_att_clean', 'linear_depol_ratio_clean', 'range'],
-                        transforms=['log', 'lin', 'lin'],
-                        weights=[1, 1, 0.5],
-                        kmean_method='k-means++',
-                        plot_result=True,
-                        save_fig=True,
-                        plot_range=[0, 10000]):
+    def Kmeans_clustering(self, cluster_N=8,
+                            variable_as_features=['beta_att_clean', 'linear_depol_ratio_clean', 'range'],
+                            transforms=['log', 'lin', 'lin'],
+                            weights=[1, 1, 0.25],
+                            kmean_method='k-means++',
+                            plot_result=True,
+                            save_fig=True,
+                            plot_range=[0, 10000]):
         '''
         Implementation of k-mean classification on data from CL61 ceilometer.
         Visualization of results can be called with "plot_result=True".
@@ -248,13 +185,15 @@ class ClusteringModule:
             plt.show()
         
         # Save clustering results to the dataset
-        self.dataset[self.cluster_result_var['KMEAN']] = xr.DataArray(data=original_shape_labels_array.T, dims=['time', 'range'])
-        self.dataset[self.cluster_result_var['KMEAN']].attrs['name'] = 'K-mean clusters'
-        self.dataset[self.cluster_result_var['KMEAN']].attrs['description'] = f'{cluster_N} K-mean clusters based on the following variables as features: {variable_as_features}'
+        new_var = self.cluster_result_var['KMEAN']
+        print(f'saving results under following{new_var}')
+        self.dataset[new_var] = xr.DataArray(data=original_shape_labels_array.T, dims=['time', 'range'])
+        self.dataset[new_var].attrs['name'] = 'K-mean clusters'
+        self.dataset[new_var].attrs['description'] = f'{cluster_N} K-mean clusters based on the following variables as features: {variable_as_features}'
 
         return 
 
-    def perform_dbscan(self, variable_as_features=['beta_att', 'linear_depol_ratio', 'range'],
+    def dbscan_clustering(self, variable_as_features=['beta_att', 'linear_depol_ratio', 'range'],
                             transforms = ['log', 'lin', 'lin'],
                             weights=[1, 1, 0.3],
                             dbscan_eps=0.5, dbscan_min_samples=5,
@@ -320,9 +259,11 @@ class ClusteringModule:
         original_shape_labels_array = full_shape_labels.reshape(dataset['beta_att_clean'].T.shape)
 
         # Save clustering results to the dataset
-        self.dataset[self.cluster_result_var['DBSCAN']] = xr.DataArray(data=original_shape_labels_array.T, dims=['time', 'range'])
-        self.dataset[self.cluster_result_var['DBSCAN']].attrs['name'] = 'DBSCAN clusters'
-        self.dataset[self.cluster_result_var['DBSCAN']].attrs['description'] = f'DBSCAN clustering with eps={dbscan_eps}, min_samples={dbscan_min_samples}'
+        new_var = self.cluster_result_var['DBSCAN']
+        print(f'saving DBSCAN clustering results under following variable {new_var}')
+        self.dataset[new_var] = xr.DataArray(data=original_shape_labels_array.T, dims=['time', 'range'])
+        self.dataset[new_var].attrs['name'] = 'DBSCAN clusters'
+        self.dataset[new_var].attrs['description'] = f'DBSCAN clustering with eps={dbscan_eps}, min_samples={dbscan_min_samples}'
         
         if plot_result:
             fig, axes = plt.subplots(1,2, figsize = (15,5), width_ratios=[1, 2])
@@ -350,3 +291,122 @@ class ClusteringModule:
         
         return
 
+    def classify_clusters(self,
+                            cluster_variable='kmean_clusters',
+                            beta_attenuation_varname='beta_att_clean',
+                            linear_depol_ratio_varname = 'linear_depol_ratio_clean',
+                            verbose = False):
+        '''
+        Classifies each cluster of cluster_variable array based on determined thresholds
+        '''
+        print(f'Classifying cluster from {cluster_variable}')
+
+        # Array for classified results
+        new_classified_array = self.dataset[cluster_variable].copy()
+
+        for cluster_id in np.unique(self.dataset[cluster_variable]):
+            
+            if cluster_id == np.nan:
+                continue
+            
+            # Get all elements related to cluster
+            mask_cluster = self.dataset[cluster_variable] == cluster_id
+
+            # Get mean measures of cluster
+            mean_beta = xr.where(mask_cluster, self.dataset[beta_attenuation_varname], np.nan).mean(skipna=True) #NA should not be present but making sure
+            mean_depol = xr.where(mask_cluster, self.dataset[linear_depol_ratio_varname], np.nan).mean(skipna=True) # same
+
+            # Classify the element
+            cluster_class = threshold_classify_element(self.config, mean_beta, mean_depol)
+            if cluster_class == 'Unclassified':
+                element_class = np.NaN
+            else:
+                element_class = cluster_class['class_id']
+
+            if verbose:
+                print(id, mean_beta.values, mean_depol.values, cluster_class)
+            
+            # update new array with new classes
+            new_classified_array = xr.where(mask_cluster, element_class, new_classified_array)
+
+        classified_cluster_var_name = 'classified_clusters'
+        self.dataset[classified_cluster_var_name] = new_classified_array
+        self.dataset[classified_cluster_var_name].attrs['name'] = 'classified clusters'
+        print(f" Successful cluster classification stored in dataset under {classified_cluster_var_name}")
+
+        return
+
+    def classify_elementwise(self,
+                             beta_attenuation_varname='beta_att_clean',
+                             linear_depol_ratio_varname = 'linear_depol_ratio_clean'):
+        '''
+        Classifies directly element wise based on thresholds focused on the variables in question
+        '''
+
+        # get directly the arrays to classifiy
+        beta_attenuation_array = self.dataset[beta_attenuation_varname]
+        lin_depol_array = self.dataset[linear_depol_ratio_varname]
+        
+        # New array for cluster results
+        classified_result_label = xr.full_like(beta_attenuation_array, np.nan)
+
+        # Classify based on ranges as defined in config file
+        for category in self.config['classes']:
+            beta_range = category['beta_attenuation_range']
+            depolarization_range = category['linear_depolarisation_ratio_range']
+            cluster_id = category['class_id']
+
+            mask_beta_att = (beta_range[0] <= beta_attenuation_array) & (beta_attenuation_array <= beta_range[1])
+            mask_ldr = (depolarization_range[0] <= lin_depol_array) & (lin_depol_array <= depolarization_range[1])
+            common_mask = mask_beta_att & mask_ldr
+            classified_result_label = xr.where(common_mask, cluster_id, classified_result_label)
+
+        new_var_name = 'classified_elements'
+        self.dataset[new_var_name] = classified_result_label
+
+        self.dataset[new_var_name].attrs['name'] = 'point-wise classification'
+        print(f"Successful pixel-wise classification stored in dataset under {new_var_name}")
+        return
+
+def threshold_classify_element_old(beta_attenuation,
+                                depolarization,
+                                log10_beta_attenuation_thresholds,
+                                linear_depolarization_thresholds):
+
+    # Classify based on beta attenuation
+    beta_attenuation_class = None
+    for label, (min_value, max_value) in log10_beta_attenuation_thresholds.items():
+        if 10**min_value <= beta_attenuation <= 10**max_value:
+            beta_attenuation_class = label
+            break
+    
+    if beta_attenuation_class == 'clear':
+        return [beta_attenuation_class, 'clear']
+    else: 
+        # Classify based on depolarization
+        depolarization_class = None
+        for label, (min_value, max_value) in linear_depolarization_thresholds.items():
+            if min_value <= depolarization <= max_value:
+                depolarization_class = label
+                break
+    
+    # Return the classification
+    if depolarization_class is not None and beta_attenuation_class is not None:
+        return [beta_attenuation_class, depolarization_class]
+    else:
+        return 'Unclassified'
+
+def threshold_classify_element(class_config, beta_attenuation, linear_depolarization_ratio):
+    '''finds based on pair of measure (beta attenuation, linear depolarisation ratio) the class related to it
+    returns:
+        dictionary of the related class as defined in the config file
+    '''
+    for category in class_config['classes']:
+        beta_range = category['beta_attenuation_range']
+        depolarization_range = category['linear_depolarisation_ratio_range']
+
+        if beta_range[0] <= beta_attenuation <= beta_range[1] and \
+           depolarization_range[0] <= linear_depolarization_ratio <= depolarization_range[1]:
+            return category
+
+    return 'Unclassified'
