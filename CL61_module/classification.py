@@ -3,7 +3,6 @@ import os
 # Dataset Treatment
 import numpy as np
 import xarray as xr
-import yaml
 
 # Unsupervised clustering
 from sklearn.cluster import KMeans, DBSCAN

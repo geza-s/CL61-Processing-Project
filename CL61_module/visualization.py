@@ -52,11 +52,11 @@ class PlotCL61:
 
     def show_timeserie(self,
                         variable_names=['beta_att', 'linear_depol_ratio'],
-                        label_names = None,
                         value_ranges=[[1e-7, 1e-4],[0,1]],
                         range_limits=None,
                         log_scale=[True, False],
                         color_map="cmc.batlow",
+                        cbar_label = None,
                         fig = None, axs = None,
                         save_fig = False,
                         fig_dpi = 300,
@@ -98,7 +98,7 @@ class PlotCL61:
                 im = subset[var_name].plot.imshow(x='time', y='range', vmin=vmin, vmax=vmax, ax = ax, cmap = color_map)
 
             cbar = im.colorbar
-            if label_names:
+            if cbar_label:
                 cbar.set_label(var_name[i])
             #else:
             #    cbar.set_label(var_name)
@@ -111,83 +111,118 @@ class PlotCL61:
             plt.savefig(filepath, bbox_inches='tight', dpi=fig_dpi)
 
         return axs
-
-
-    def colormesh(self, variable_names=['beta_att', 'linear_depol_ratio'],
-                        min_value=1e-7,
-                        max_value=1e-4,
-                        range_limits=None,
-                        scales=['log', 'linear'],
-                        time_var='time',
-                        range_var='range',
-                        color_map=COLOR_MAP_NAME,
-                        save_fig = False,
-                        fig_dpi = 300,
-                        fig = None, axs = None,
-                        **kwargs):
-        """
-        Plot CL61 data as a colormesh.
-
-        Args:
-            dataset (_type_): The dataset to be plotted.
-            variable_names (list, optional): Names of the variables to be plotted.. Defaults to ['beta_att', 'linear_depol_ratio'].
-            min_value (_type_, optional):Minimum value for the color scale.. Defaults to 1e-7.
-            max_value (_type_, optional): Maximum value for the color scale.. Defaults to 1e-4.
-            range_limits (int or list , optional): max_range or [min_range, max_range] for the y-axis (optional upper limit).. Defaults to None.
-            color_map (_type_, optional): Matplotlib colormap name. (Default see file).
-            scales (list, optional): to specify the color scales. Defaults to ['log', 'linear'].
-            time_var (str, optional): Name of the time variable. Defaults to 'time'.
-            range_var (str, optional): Name of the range variable. Defaults to 'range'.
-            save_fig (bool, optional): Set to True if you want to save the figure. Defaults to True.
-        """
-        dataset = self.dataset
-        x = dataset[time_var].values
-        h = np.round(dataset[range_var].values)
-        back_att_arr = dataset[variable_names[0]].T.values
-        depol_arr = dataset[variable_names[1]].T.values
-
-        fig, [ax, ax2] = plt.subplots(2, 1, figsize=(10, 5), sharex=True)
-
-        lims = [np.max([np.nanmin(back_att_arr), min_value]), np.min([np.nanmax(back_att_arr), max_value])]
-
-        range_limits = get_range_limits(range_limits=range_limits)
+       
+    def show_cloud_base_heights(self, range_limits = [0, 15000], underlying_variable = 'beta_att',
+                                ax = None, colormap = COLOR_MAP, save_fig = False,
+                                figsize = (12, 5), figdpi = 300):
         
-        if scales[0] == 'log':
-            cax = ax.pcolormesh(x, h, back_att_arr, axes=ax, shading='nearest', cmap=color_map,
-                                norm=colors.LogNorm(vmin=lims[0], vmax=lims[1]))
-        else:
-            cax = ax.pcolormesh(x, h, back_att_arr, axes=ax, shading='nearest', cmap=color_map, vmin=0, vmax=1)
+        # Check range limits
+        range_limits = get_range_limits(range_limits)
         
-        cbar = fig.colorbar(cax)
-        cbar.ax.get_yaxis().labelpad = 15
-        cbar.ax.set_ylabel(rf'{variable_names[0]}', rotation=90)
-        ax.set_ylabel('Range (m)')
-        # ax.set_xlabel('time')
-        ax.set_ylim(range_limits)
+        # Slice data based on range
+        subset = self.dataset.sel(range = slice(*range_limits))
 
-        if scales[1] == 'log':
-            cax2 = ax2.pcolormesh(x, h, depol_arr, shading='nearest', cmap=color_map,
-                                norm=colors.LogNorm(vmin=lims[0], vmax=lims[1]))
-        else:
-            cax2 = ax2.pcolormesh(x, h, depol_arr, shading='nearest', cmap=color_map, vmin=0, vmax=1)
-
-        cbar = fig.colorbar(cax2)
-        cbar.ax.get_yaxis().labelpad = 15
-        cbar.ax.set_ylabel(rf'{variable_names[1]}', rotation=90)
+        # Create plot if not given
+        if ax is None:
+            fig, ax = plt.subplots(figsize = figsize)
         
-        ax2.set_ylabel('Range (m)')
-        ax2.set_xlabel('time')
-        ax2.set_ylim(range_limits)
-
-        ax2.set_xticklabels(ax2.get_xticklabels(), rotation=30, ha='right')
-
+        # Plot cloud base heights
+        cloud_plot = subset['cloud_base_heights'].plot.scatter(ax = ax, marker = '_',
+                                                               color ='#48013b', alpha  = 0.7,
+                                                               label = 'cloud base heights')
+        
+        # Plot underlying variable (beta attenuation by default)
+        if underlying_variable in ('beta_att', 'beta_att_clean'):
+            np.log10(subset[underlying_variable].T).plot.imshow(ax = ax, cmap = colormap, vmin = -8, vmax = -3)
+        elif underlying_variable in ('linear_depol_ratio', 'linear_depol_ratio_clean'):
+            subset[underlying_variable].T.plot.imshow(ax = ax, cmap = colormap, vmin = 0, vmax = 1)
+        
+        ax.legend(handles=[cloud_plot])
+        
         if save_fig:
             filepath = filename_to_save(self.dataset, save_fig, suffix='colormesh')
             print(f'saved figure to {filepath}')
-            plt.savefig(filepath, bbox_inches='tight', dpi=fig_dpi)
+            plt.savefig(filepath, bbox_inches='tight', dpi=figdpi)
         
         plt.show()
-        return  fig, [ax,ax2]
+        
+        return ax
+        
+    # def colormesh(self, variable_names=['beta_att', 'linear_depol_ratio'],
+    #                     min_value=1e-7,
+    #                     max_value=1e-4,
+    #                     range_limits=None,
+    #                     scales=['log', 'linear'],
+    #                     time_var='time',
+    #                     range_var='range',
+    #                     color_map=COLOR_MAP_NAME,
+    #                     save_fig = False,
+    #                     fig_dpi = 300,
+    #                     fig = None, axs = None,
+    #                     **kwargs):
+    #     """
+    #     Plot CL61 data as a colormesh.
+
+    #     Args:
+    #         dataset (_type_): The dataset to be plotted.
+    #         variable_names (list, optional): Names of the variables to be plotted.. Defaults to ['beta_att', 'linear_depol_ratio'].
+    #         min_value (_type_, optional):Minimum value for the color scale.. Defaults to 1e-7.
+    #         max_value (_type_, optional): Maximum value for the color scale.. Defaults to 1e-4.
+    #         range_limits (int or list , optional): max_range or [min_range, max_range] for the y-axis (optional upper limit).. Defaults to None.
+    #         color_map (_type_, optional): Matplotlib colormap name. (Default see file).
+    #         scales (list, optional): to specify the color scales. Defaults to ['log', 'linear'].
+    #         time_var (str, optional): Name of the time variable. Defaults to 'time'.
+    #         range_var (str, optional): Name of the range variable. Defaults to 'range'.
+    #         save_fig (bool, optional): Set to True if you want to save the figure. Defaults to True.
+    #     """
+    #     dataset = self.dataset
+    #     x = dataset[time_var].values
+    #     h = np.round(dataset[range_var].values)
+    #     back_att_arr = dataset[variable_names[0]].T.values
+    #     depol_arr = dataset[variable_names[1]].T.values
+
+    #     fig, [ax, ax2] = plt.subplots(2, 1, figsize=(10, 5), sharex=True)
+
+    #     lims = [np.max([np.nanmin(back_att_arr), min_value]), np.min([np.nanmax(back_att_arr), max_value])]
+
+    #     range_limits = get_range_limits(range_limits=range_limits)
+        
+    #     if scales[0] == 'log':
+    #         cax = ax.pcolormesh(x, h, back_att_arr, axes=ax, shading='nearest', cmap=color_map,
+    #                             norm=colors.LogNorm(vmin=lims[0], vmax=lims[1]))
+    #     else:
+    #         cax = ax.pcolormesh(x, h, back_att_arr, axes=ax, shading='nearest', cmap=color_map, vmin=0, vmax=1)
+        
+    #     cbar = fig.colorbar(cax)
+    #     cbar.ax.get_yaxis().labelpad = 15
+    #     cbar.ax.set_ylabel(rf'{variable_names[0]}', rotation=90)
+    #     ax.set_ylabel('Range (m)')
+    #     # ax.set_xlabel('time')
+    #     ax.set_ylim(range_limits)
+
+    #     if scales[1] == 'log':
+    #         cax2 = ax2.pcolormesh(x, h, depol_arr, shading='nearest', cmap=color_map,
+    #                             norm=colors.LogNorm(vmin=lims[0], vmax=lims[1]))
+    #     else:
+    #         cax2 = ax2.pcolormesh(x, h, depol_arr, shading='nearest', cmap=color_map, vmin=0, vmax=1)
+
+    #     cbar = fig.colorbar(cax2)
+    #     cbar.ax.get_yaxis().labelpad = 15
+    #     cbar.ax.set_ylabel(rf'{variable_names[1]}', rotation=90)
+        
+    #     ax2.set_ylabel('Range (m)')
+    #     ax2.set_xlabel('time')
+    #     ax2.set_ylim(range_limits)
+
+    #     ax2.set_xticklabels(ax2.get_xticklabels(), rotation=30, ha='right')
+
+    #     if save_fig:
+    #         filepath = filename_to_save(self.dataset, save_fig, suffix='colormesh')
+    #         print(f'saved figure to {filepath}')
+    #         plt.savefig(filepath, bbox_inches='tight', dpi=fig_dpi)
+        
+    #     plt.show()
+    #     return  fig, [ax,ax2]
 
     def plot_histogram(self,
                         variables=['beta_att_clean', 'linear_depol_ratio_clean'],
@@ -198,7 +233,24 @@ class PlotCL61:
                         save_figure=True,
                         fig=None,
                         ax=None):
-                
+        """
+        Plot 1D or 2D histograms for specified variables in the dataset.
+
+        Parameters:
+        - variables: list of str, required, list of variables for which histograms will be plotted.
+        - classes_variable: str, optional, variable used for coloring if 1D histogram includes classes.
+        - variable_logscales: list of bool, optional, list indicating whether to apply log scale to each variable.
+        - count_log: bool, optional, if True, the count axis is displayed in log scale.
+        - colormap: str or list, optional, colormap to use for plotting.
+        - save_figure: bool, optional, if True, save the plotted figure.
+        - fig: matplotlib.figure.Figure, optional, existing figure for plotting.
+        - ax: matplotlib.axes._axes.Axes, optional, existing axes for plotting.
+
+        Returns:
+        - fig: matplotlib.figure.Figure, the plotted figure.
+        - ax: matplotlib.axes._axes.Axes, the plotted axes.
+        """
+        
         # dataset ref
         dataset = self.dataset
 
@@ -280,6 +332,7 @@ class PlotCL61:
             raise(ValueError("More than 2 variables not supported"))
 
         return fig, ax
+
 
     def vertical_profile(self, time_period=None,
                             var_names=['beta_att', 'linear_depol_ratio'],

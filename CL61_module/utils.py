@@ -9,9 +9,18 @@ def filename_to_save(dataset,
                      save_name,
                      suffix='other',
                      output_folder='..\Outputs'):
-    '''
-    Finds the path and appropriate name for saving file based on period of interest of dataset
-    '''
+    """
+    Generate a filename for saving a figure based on dataset information.
+
+    Parameters:
+    - dataset: Your dataset object.
+    - save_name: str, name to be saved to.
+    - suffix: str, optional, additional information to include in the filename.
+    - dpi: int, optional, dots per inch for the saved figure (default=300).
+
+    Returns:
+    - filename: str, generated filename for saving the figure.
+    """
     if isinstance(save_name, str):
         return os.path.join(output_folder, save_name)
     else:
