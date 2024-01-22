@@ -56,7 +56,7 @@ class PlotCL61:
                         range_limits=None,
                         log_scale=[True, False],
                         color_map="cmc.batlow",
-                        cbar_label = None,
+                        cbar_labels = None,
                         fig = None, axs = None,
                         save_fig = False,
                         fig_dpi = 300,
@@ -98,10 +98,13 @@ class PlotCL61:
                 im = subset[var_name].plot.imshow(x='time', y='range', vmin=vmin, vmax=vmax, ax = ax, cmap = color_map)
 
             cbar = im.colorbar
-            if cbar_label:
+            if cbar_labels is None:
                 cbar.set_label(var_name[i])
-            #else:
-            #    cbar.set_label(var_name)
+            else:
+                if isinstance(cbar_labels, str):
+                    cbar_labels = [cbar_labels]
+                cbar.set_label(cbar_labels[i])
+            
             ax.set_ylabel('range [m]')
             ax.set_title('')
 
@@ -113,11 +116,8 @@ class PlotCL61:
         return axs
        
     def show_cloud_base_heights(self, range_limits = [0, 15000], underlying_variable = 'beta_att',
-                                ax = None, colormap = COLOR_MAP, save_fig = False,
+                                ax = None, colormap = cmc.batlow, save_fig = False,
                                 figsize = (12, 5), figdpi = 300):
-        
-        # Check range limits
-        range_limits = get_range_limits(range_limits)
         
         # Slice data based on range
         subset = self.dataset.sel(range = slice(*range_limits))
@@ -128,21 +128,22 @@ class PlotCL61:
         
         # Plot cloud base heights
         cloud_plot = subset['cloud_base_heights'].plot.scatter(ax = ax, marker = '_',
-                                                               color ='#48013b', alpha  = 0.7,
-                                                               label = 'cloud base heights')
+                                                                color ='#48013b', alpha  = 0.7,
+                                                                label = 'cloud base heights')
         
         # Plot underlying variable (beta attenuation by default)
         if underlying_variable in ('beta_att', 'beta_att_clean'):
-            np.log10(subset[underlying_variable].T).plot.imshow(ax = ax, cmap = colormap, vmin = -8, vmax = -3)
+            im = np.log10(subset[underlying_variable].T).plot.imshow(ax = ax, cmap = colormap, vmin = -8, vmax = -3)
+            cbar = im.colorbar
+            cbar.set_label('$Log_{10}$ attenuated backscatter \n coefficient  [$m^{-1}~sr^{-1}$]')
         elif underlying_variable in ('linear_depol_ratio', 'linear_depol_ratio_clean'):
-            subset[underlying_variable].T.plot.imshow(ax = ax, cmap = colormap, vmin = 0, vmax = 1)
+            im = subset[underlying_variable].T.plot.imshow(ax = ax, cmap = colormap, vmin = 0, vmax = 1)
+            cbar = im.colorbar
+            cbar.set_label('Linear depolarization ratio')
+        ax.legend(handles=[cloud_plot], loc = 'right', bbox_to_anchor = (1, 1))
         
-        ax.legend(handles=[cloud_plot])
-        
-        if save_fig:
-            filepath = filename_to_save(self.dataset, save_fig, suffix='colormesh')
-            print(f'saved figure to {filepath}')
-            plt.savefig(filepath, bbox_inches='tight', dpi=figdpi)
+        ax.set_ylabel('range [m]')
+        ax.set_title("")
         
         plt.show()
         
@@ -224,7 +225,156 @@ class PlotCL61:
     #     plt.show()
     #     return  fig, [ax,ax2]
 
-    def plot_histogram(self,
+    def histogram_1d(self, variable = 'beta_att_clean', classes_variable=None,
+            variable_logscale=True, count_log=False, colormap=COLOR_MAP,
+            save_figure=True, fig=None, ax=None):
+        """
+        Plot a 1D histogram for the specified variable in the dataset.
+
+        Parameters:
+        - dataset: pandas.DataFrame, required, dataset containing the variable for plotting.
+        - variable: str, required, name of the variable to plot the histogram for.
+        - classes_variable: str, optional, variable used for coloring the histogram if applicable.
+        - variable_logscale: bool, optional, if True, apply logarithmic scale to the variable.
+        - count_log: bool, optional, if True, the count axis is displayed in log scale.
+        - colormap: str or list, optional, colormap to use for plotting.
+        - save_figure: bool, optional, if True, save the plotted figure.
+        - fig: matplotlib.figure.Figure, optional, existing figure for plotting.
+        - ax: matplotlib.axes._axes.Axes, optional, existing axes for plotting.
+
+        Returns:
+        - fig: matplotlib.figure.Figure, the plotted figure.
+        - ax: matplotlib.axes._axes.Axes, the plotted axes.
+        """
+
+        # dataset ref
+        dataset = self.dataset
+        check_variables(dataset, variable)
+
+        # Check inputs and adapt if possible
+        if isinstance(variable, str):
+            variables = [variable]
+        if isinstance(variable_logscale, bool):
+            variable_logscales = [variable_logscale]
+        if len(variable_logscales) < len(variables):
+            raise(ValueError("variable_logscale should be specified for each variable given (same length)"))
+
+        # 1D histogram
+        variable_1 = variables[0]
+        x = dataset[variable_1].values.flatten()
+
+        if fig is None:
+            fig = plt.figure(figsize=(8, 5))
+
+        if ax is None:
+            ax = fig.add_subplot(111)
+
+        if classes_variable:
+            c = dataset[classes_variable].values.flatten()
+            df = pd.DataFrame({variable_1: x, classes_variable: c})
+        else:
+            c = None
+            df = pd.DataFrame({variable_1: x})
+
+        if variable_logscale[0]:
+            df[variable_1] = np.log10(df[variable_1])
+
+        if classes_variable:
+            sns.set(style="whitegrid")
+            sns.histplot(
+                data=df, x=variable_1, hue=classes_variable, multiple="stack", palette=colormap, edgecolor=".3", linewidth=.5,
+                log_scale=count_log, ax=ax
+            )
+            ax.set_title(f"1D Histogram of {variable_1}")
+            ax.set_xlabel(variable_1)
+            ax.set_ylabel("Count (log scale)" if count_log else "Count")
+        else:
+            ax.set_title(f"1D Histogram of {variable_1}")
+            ax.set_xlabel(variable_1)
+            ax.set_ylabel("Count (log scale)" if count_log else "Count")
+            sns.histplot(data=df, x=variable_1, edgecolor=".3", linewidth=.5, log_scale=count_log, ax=ax)
+
+        if save_figure:
+            plt.savefig(filename_to_save(dataset, save_figure, suffix=f"hist_{variable_1}"), dpi=300)
+
+        return fig, ax
+
+    def histogram_2d(self,
+                    variable_1 = 'beta_att_clean',
+                    variable_2='linear_depol_ratio_clean',
+                    variable_logscales=[True, False],
+                    count_log=True,
+                    save_figure=True,
+                    colormap=COLOR_MAP):
+        """
+        Plot a 2D histogram for the specified variables in the dataset.
+
+        Parameters:
+        - dataset: pandas.DataFrame, required, dataset containing the variables for plotting.
+        - variable_1: str, required, name of the first variable to plot the histogram for.
+        - variable_2: str, required, name of the second variable to plot the histogram for.
+        - variable_logscales: list of bool, optional, list indicating whether to apply log scale to each variable.
+        - count_log: bool, optional, if True, the count axis is displayed in log scale.
+        - colormap: str or list, optional, colormap to use for plotting.
+        - save_figure: bool, optional, if True, save the plotted figure.
+        - fig: matplotlib.figure.Figure, optional, existing figure for plotting.
+        - ax: matplotlib.axes._axes.Axes, optional, existing axes for plotting.
+
+        Returns:
+        - fig: matplotlib.figure.Figure, the plotted figure.
+        - ax: matplotlib.axes._axes.Axes, the plotted axes.
+        """
+        # Dataset reference and validity check
+        dataset = self.dataset
+        check_variables(dataset, variables=[variable_1, variable_2]) #raise understandible error if var not in dataset         
+        
+        # Flatten values for binning (histograms)
+        x = dataset[variable_1].values.flatten()
+        y = dataset[variable_2].values.flatten()
+
+        # apply scale transformation
+        if variable_logscales[0]:
+            x = np.log10(x)
+        if variable_logscales[1]:
+            y = np.log10(y)
+
+        df = pd.DataFrame({variable_1: x, variable_2: y})
+
+        g = sns.JointGrid(
+            data=df, x=variable_1, y=variable_2, height=7, ratio=4
+        )
+        if count_log:
+            hb = g.ax_joint.hexbin(x, y, gridsize=300, cmap=colormap, bins="log")
+        else:
+            hb = g.ax_joint.hexbin(x, y, gridsize=300, cmap=colormap)
+
+        cax = plt.gcf().add_axes([1.05, 0.1, 0.05, 0.7])
+        cbar = plt.colorbar(hb, cax=cax)
+
+        sns.histplot(
+            data=df,
+            x=x,
+            ax=g.ax_marg_x,
+            cbar_kws={"edgecolor": None},
+            color='#03275C',
+            element="step"
+        )
+        sns.histplot(
+            y=y,
+            ax=g.ax_marg_y,
+            cbar_kws={"edgecolor": None},
+            color='#03275C',
+            element="step"
+        )
+
+        if save_figure:
+            plt.savefig(
+                filename_to_save(dataset, save_figure, suffix=f"hist_{variable_1}_{variable_2}"), dpi=300
+            )
+
+        return g
+
+    def histogram(self,
                         variables=['beta_att_clean', 'linear_depol_ratio_clean'],
                         classes_variable=None,
                         variable_logscales=[True, False],
@@ -331,7 +481,6 @@ class PlotCL61:
         else:
             raise(ValueError("More than 2 variables not supported"))
 
-        return fig, ax
 
 
     def vertical_profile(self, time_period=None,
@@ -496,7 +645,7 @@ class PlotCL61:
         return
     
     def show_classified_timeserie(self, classified_variable = 'classified_clusters',
-                                ylims=[0, 10000], fig=None, ax=None):
+                                ylims=[0, 10000], fig=None, ax=None, save_fig = False, title = None):
         '''Plots the classifed array with id corresponding to class naem as given in config file'''
 
         config = self.parent.classification.config
@@ -508,7 +657,7 @@ class PlotCL61:
         num_categories = len(config['classes'])
 
         if (fig is None) or (ax is None):
-            fig, ax = plt.subplots(1, 1, figsize=(10, 5))  # Set the figure size as needed
+            fig, ax = plt.subplots(1, 1, figsize=(10, 5))
 
         # Create a colored mesh plot using the custom colormap
         plot = ax.pcolormesh(self.dataset['time'], self.dataset['range'], self.dataset[classified_variable].T,
@@ -519,16 +668,28 @@ class PlotCL61:
         cbar.set_ticks([i+0.5 for i in category_ids])
         cbar.set_ticklabels([f"{category['class_id']}: {category['class_name']}" for category in config['classes']])
 
-        # Set labels for x and y axes (if needed)
+        # Set labels for x and y axes
         ax.set_ylim(ylims)
-        ax.set_xlabel('Range')
-        ax.set_ylabel('Time')
+        ax.set_xlabel('Time')
+        ax.set_ylabel('Range [m]')
 
-        # Set the title of the plot (if needed)
-        ax.set_title('Classification Results')
+        # Set the title of the plot
+        if title:
+            ax.set_title(title)
+        # Rotate time labels (xticks)
+        ax.tick_params(axis='x', rotation=45, which='major')
+
+        if save_fig:
+            filepath = filename_to_save(
+                dataset=self.dataset,
+                save_name=save_fig,
+                suffix='classified'
+            )
+            print(f'Saved element to {filepath}')
+            plt.savefig(filepath, bbox_inches='tight', dpi=300)
+
 
         # Show the plot
-
         plt.show()
         
         return fig, ax
@@ -577,7 +738,16 @@ def get_xarray_subset_time_range(time_period, dataset):
 
     return subset
 
+def check_variables(dataset, variables):
+    if isinstance(variables, str):
+        variables = [variables]
+    elif not isinstance(variables, list):
+        raise ValueError("Variables should be a string or a list")
 
+    for variable in variables:
+        if variable not in dataset:
+            raise KeyError(f"'{variable}' does not exist in the dataset.")
+    return
 
 def get_range_limits(range_limits, min_range = 0, max_range = 15000):
     """Checks and returns valid range limits

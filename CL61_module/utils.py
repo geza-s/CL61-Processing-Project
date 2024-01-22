@@ -22,11 +22,51 @@ def filename_to_save(dataset,
     - filename: str, generated filename for saving the figure.
     """
     if isinstance(save_name, str):
-        return os.path.join(output_folder, save_name)
+        if os.path.dirname(save_name) is None:
+            # Only a filename 
+            return os.path.join(output_folder, save_name)
+        else:
+            # already a directory + filename
+            return save_name
+    elif isinstance(save_name, os.PathLike):
+        # Already a path
+        return save_name
     else:
         # Determine the default filename based on the first datetime in the dataset
         default_filename = f"{dataset['time'][0].values.astype('datetime64[h]')}_{suffix}"
         return os.path.join(output_folder, default_filename)
+
+def generate_output_folder_name(dataset):
+    """
+    Generate a name for the output folder based on a datetime and position
+
+    Parameters:
+    - dataset: xarray.Dataset
+        The input spatio-temporal dataset.
+
+    Returns:
+    - output_folder_name: str
+        The generated output folder name.
+    """
+    
+    if 'time' not in dataset:
+        raise ValueError('Variable time not found in dataset')
+    
+    # Extract information from the dataset
+    first_datetime = dataset.time[0]
+    
+    folder_name_parts = [f"{first_datetime.dt.strftime('%Y-%m-%d').values}"]
+
+    # Create a folder name based on latitude and longitude
+    folder_name_parts.extend([
+        f"lat={dataset['latitude'].values:.2f}",
+        f"lon={dataset['longitude'].values:.2f}"
+        ])
+
+    # Combine parts to create the folder name
+    output_folder_name = "_".join(folder_name_parts).replace('.', '_')
+
+    return output_folder_name
 
 
 def load_config(filepath = None):

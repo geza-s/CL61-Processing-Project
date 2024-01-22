@@ -16,7 +16,7 @@ from datashader.mpl_ext import dsshow
 
 # Needed function
 from scipy.stats import mode # for hexbins better plotting 
-from .utils import load_config
+from .utils import load_config, filename_to_save
 
 # Needed global variable
 config_classification = None 
@@ -34,20 +34,17 @@ COLOR_CODES_BLUE_YEL = ['#03245C', '#D69444']
 
 
 
-def visualize_classification_featurespace_2D(feature1_name,
-                                             feature1_flatten,
-                                             feature2_name,
-                                             feature2_flatten,
+def visualize_classification_featurespace_2D(log10_beta_att_flatten,
+                                             linear_depol_ratio_flatten,
                                              cluster_labels_flatten,
                                              fig = None, ax = None,
                                              plot_cbar = True,
                                              use_datashader = False,
-                                             cmap = COLOR_MAP,
-                                             save_fig = False):
+                                             cmap = COLOR_MAP):
 
     # Assuming 'cleaned_feature_matrix' is your feature matrix
-    df = pd.DataFrame({feature1_name: feature1_flatten,
-                    feature2_name: feature2_flatten,
+    df = pd.DataFrame({'log10_beta': log10_beta_att_flatten,
+                    'LDR': linear_depol_ratio_flatten,
                     'cluster_labels': cluster_labels_flatten})
 
     #cvs = ds.Canvas(plot_width=500, plot_height=500)
@@ -77,25 +74,25 @@ def visualize_classification_featurespace_2D(feature1_name,
     if use_datashader:
         print("Using datashader for plotting ") #debugging 
             # Get range of values to reset axes labels
-        x_range = (np.nanmin(feature1_flatten), np.nanmax(feature1_flatten))
-        y_range = (np.nanmin(feature2_flatten), np.nanmax(feature2_flatten))
+        x_range = (np.nanmin(log10_beta_att_flatten), np.nanmax(log10_beta_att_flatten))
+        y_range = (np.nanmin(linear_depol_ratio_flatten), np.nanmax(linear_depol_ratio_flatten))
     
-        artist = dsshow(df, ds.Point(feature1_name, feature2_name), ds.mean('cluster_labels'),
+        artist = dsshow(df, ds.Point('log10_beta_att', 'LDR'), ds.mean('cluster_labels'),
                         ax=ax, cmap = discrete_cmap)
     else:
         def most_freq_value(a):
             return np.bincount(a).argmax()
         
-        artist = ax.hexbin(feature1_flatten, feature2_flatten, C=cluster_labels_flatten,
+        artist = ax.hexbin(log10_beta_att_flatten, linear_depol_ratio_flatten, C=cluster_labels_flatten,
                            gridsize=500, cmap=discrete_cmap,
                            reduce_C_function=most_freq_value, mincnt=2)
     
     if plot_cbar:
         fig.colorbar(artist, ax=ax, orientation='vertical')
         
-    ax.set_title('Feature space clustering')
-    ax.set_xlabel(feature1_name)
-    ax.set_ylabel(feature2_name)
+    #ax.set_title('Clustering in Feature space')
+    ax.set_xlabel('$Log_{10}$ attenuated backscatter \n coefficient [$m^{-1}~sr^{-1}$]')
+    ax.set_ylabel('Linear depolarization ratio')
 
     
     if set_figure:
@@ -111,20 +108,6 @@ def visualize_cluster_results(dataset,
                             range_limits = [0,5000],
                             color_map = COLOR_MAP_NAME):
     
-    # Define the original colormap (e.g., 'viridis')
-    #original_cmap = plt.get_cmap(COLOR_MAP_NAME)
-
-    # Define the number of discrete categories
-    #num_categories = np.unique(original_shape_labels_array).size  # Adjust as needed
-
-    # Create a list of evenly spaced values to sample the colormap
-    #color_values = np.linspace(0, 1, num_categories)
-
-    # Sample the original colormap at the specified values
-    #discrete_colors = original_cmap(color_values)
-
-    # Create a custom ListedColormap with the discrete colors
-    #discrete_cmap = ListedColormap(discrete_colors)
 
     if (ax==None) | (fig==None): 
         set_fig = True
@@ -144,12 +127,15 @@ def visualize_cluster_results(dataset,
 
     # Set labels for x and y axes (if needed)
     ax.set_ylim(range_limits)
-    ax.set_xlabel('Range')
-    ax.set_ylabel('Time')
-
+    ax.set_xlabel('Time')
+    ax.set_ylabel('Range [m]')
+    
     # Set the title of the plot (if needed)
-    ax.set_title('K-Means Clustering Results')
+    #ax.set_title('K-Means Clustering Results')
 
+    # Rotate time labels (xticks)
+    ax.tick_params(axis='x', rotation=45, which='major')
+    
     # Show the plot
     if set_fig:
         print("showing fig")
@@ -157,7 +143,7 @@ def visualize_cluster_results(dataset,
 
     return ax, fig
 
-def colormesh_classification_results(dataset, classified_var_name = 'classified',
+def colormesh_classification_results(dataset, classified_var_name = 'classified', title = None, 
                               colormap = COLOR_MAP_NAME):
 
     # Define the original colormap (e.g., 'viridis')
@@ -192,7 +178,8 @@ def colormesh_classification_results(dataset, classified_var_name = 'classified'
     plt.ylabel('Time')
 
     # Set the title of the plot (if needed)
-    plt.title('K-Means Clustering Results')
+    if title:
+        plt.title(title)
 
     # Show the plot
     plt.show()
@@ -205,7 +192,8 @@ def plot_classified_colormesh_old(classified_array,
                               time_array,
                               range_array,
                               ylims = [0,5000],
-                              fig = None, ax = None ):
+                              fig = None, ax = None,
+                              title = None):
     
     # Get necessary values from config file/variable
     config_classification = load_config()
@@ -232,9 +220,13 @@ def plot_classified_colormesh_old(classified_array,
     ax.set_ylim(ylims)
     ax.set_xlabel('Range')
     ax.set_ylabel('Time')
-
+    
     # Set the title of the plot (if needed)
-    ax.set_title('Classification Results')
+    if title:
+        ax.set_title(title)
+    
+    # Rotate time labels (xticks)
+    ax.tick_params(axis='x', rotation=45, which='major')
 
     # Show the plot
     if (fig==None)|(ax==None):
@@ -242,7 +234,7 @@ def plot_classified_colormesh_old(classified_array,
     return fig, ax
 
     
-def plot_classified_timeserie(classified_array, time_array, range_array, config, ylims=[0, 10000], fig=None, ax=None):
+def plot_classified_timeserie(classified_array, time_array, range_array, config, ylims=[0, 10000], fig=None, ax=None, save_fig = False):
     '''Plots the classifed array with id corresponding to class naem as given in config file'''
     # Get necessary values from the config file
     category_colors = [category['color'] for category in config['classes']]
@@ -265,11 +257,11 @@ def plot_classified_timeserie(classified_array, time_array, range_array, config,
 
     # Set labels for x and y axes (if needed)
     ax.set_ylim(ylims)
-    ax.set_xlabel('Range')
-    ax.set_ylabel('Time')
+    ax.set_xlabel('Time')
+    ax.set_ylabel('Range [m]')
 
     # Set the title of the plot (if needed)
-    ax.set_title('Classification Results')
+    #ax.set_title('Classification Results')
 
     # Show the plot
     if (fig is None) or (ax is None):

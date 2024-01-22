@@ -30,7 +30,7 @@ from CL61_module import visualization
 from CL61_module import process
 from CL61_module import classification
 
-from .utils import load_config
+from .utils import load_config, generate_output_folder_name
 
 plt.style.use('bmh')
 COLOR_MAP_NAME = 'cmc.batlow'
@@ -81,7 +81,7 @@ class CL61Processor:
         self.temp_dir = os.path.join(self.module_dir, "temp")
         os.makedirs(self.temp_dir, exist_ok=True)
         if transfer_files_locally:
-            self.debug_print(f"Created temporary folder at: {self.temp_dir}")
+            self.debug_print(f"- Created temporary folder at: {self.temp_dir}")
 
         # Config filepath
         self.config_path = config_path
@@ -95,13 +95,16 @@ class CL61Processor:
         self.files_in_data_folder = None
         self.files_in_time_periods = None
         if specific_filename is None:
-            self.debug_print("Getting filenames in data folder ... ")
+            while not os.path.isdir(folder_path):
+                folder_path = input('Folder path not valid; please enter a valid path to data folder: ')
+                
+            self.debug_print("- Getting filenames in data folder ... ")
             self.files_in_time_periods = self.get_filepaths_with_timestamps(start_datetime, end_datetime)
             self.debug_print(self.files_in_time_periods['filenames'], level=3)
             
         # Initialize dataset based on conditions set
         if self.dataset is None:
-            self.debug_print((f"Loading dataset from files with parameter: \n \t load_to_memory={load_to_memory},"
+            self.debug_print((f"- Loading dataset from files with parameter: \n \t load_to_memory={load_to_memory},"
                              f"transfer_files_locally={transfer_files_locally}, parallel_computing = {parallel_computing}"))
             self._load_data(specific_filename,
                             load_to_memory = load_to_memory,
@@ -116,7 +119,7 @@ class CL61Processor:
         self.process_noise = process.NoiseProcessor(parent = self)
         self.classification = classification.CL61Classifier(parent = self)
 
-        self.debug_print(message = "Module initilaization completed !", level=1)
+        self.debug_print(message = "Module initialization completed !", level=1)
         return 
 
     def _load_data(self, specific_filename, load_to_memory, transfer_files_locally, parallel_computing):
@@ -307,28 +310,53 @@ class CL61Processor:
 
         return subset_processor
 
-    def auto_process(self, plot_results = True, clustering_method = 'kmean', range_limits = [0,10000]):
+    def auto_process(self, plot_results = True, clustering_method = 'kmean', range_limits = [0,10000], save_into_folder = None):
         ''' Runs automated pipeline based on default values'''
-
+        
+        if save_into_folder:
+            if os.path.isdir(save_into_folder):
+                output_folder = save_into_folder
+            else:
+                specific_name = generate_output_folder_name(dataset=self.dataset)
+                output_folder = os.path.join('../Outputs', specific_name)
+                os.makedirs(output_folder)
+            
+            
+            self.debug_print(f"Saving files into {output_folder}")
+        
         # Show timeserie before noise removal
         if plot_results:
-            self.plot.show_timeserie(range_limits=range_limits)
+            save_fig_into = os.path.join(output_folder, 'timeserie.jpg') if save_into_folder else False
+            self.plot.show_timeserie(range_limits=range_limits,
+                                     cbar_labels = ['$Log_{10}$ attenuated backscatter \n coefficient [$m^{-1}~sr^{-1}$]',
+                                                    'Linear depolarization ratio'],
+                                     save_fig=save_fig_into)
 
         # Remove noise and show results afterwards
         print("Step 1: applying noise removal process")
         self.process_noise.mask_noise()
+        
         if plot_results:
-            self.plot.show_timeserie(variable_names=['beta_att_clean', 'linear_depol_ratio_clean'], range_limits=range_limits)
+            save_fig_into = os.path.join(output_folder, 'denoised_timeserie.jpg') if save_into_folder else False
+            self.plot.show_timeserie(variable_names=['beta_att_clean', 'linear_depol_ratio_clean'],
+                                     range_limits=range_limits,
+                                     cbar_labels = ['$Log_{10}$ attenuated backscatter \n coefficient (filtered) \n [$m^{-1}~sr^{-1}$]',
+                                                    'Linear depolarization ratio \n (filtered)'],
+                                     save_fig=save_fig_into)
         
         # Plot cloud base heights
-        self.plot.show_cloud_base_heights(underlying_variable='beta_att_clean',
-                                          range_limits=range_limits,
-                                          save_fig=plot_results)
+            save_fig_into = os.path.join(output_folder, 'cloud_heights.jpg') if save_into_folder else False
+            self.plot.show_cloud_base_heights(underlying_variable='beta_att_clean',
+                                            range_limits=range_limits,
+                                            save_fig=save_fig_into)
+        
         
         # Cluster data then classify and show results
         print(f"step 2: cluster data with {clustering_method} method")
         if clustering_method == 'kmean':
-            self.classification.Kmeans_clustering(cluster_N=16, plot_result=plot_results, plot_range=range_limits)
+            save_fig_into = os.path.join(output_folder, 'kmean_clusters.jpg') if save_into_folder else False
+            self.classification.Kmeans_clustering(cluster_N=16, plot_result=plot_results, plot_range=range_limits,
+                                                  save_fig=save_fig_into)
             self.classification.classify_clusters(cluster_variable='kmean_clusters')
         elif clustering_method == 'dbscan':
             print(f'This method is experimental and usually shows poor results...')
@@ -338,14 +366,17 @@ class CL61Processor:
             raise(ValueError(f'clustering_method should be of {"kmean" or "dbscan"}; given value {clustering_method} not supported'))
         
         if plot_results:
-            self.plot.show_classified_timeserie(classified_variable='classified_clusters', ylims = range_limits)
+            save_fig_into = os.path.join(output_folder, 'classified_clusters.jpg') if save_into_folder else False
+            self.plot.show_classified_timeserie(classified_variable='classified_clusters', ylims = range_limits,
+                                                save_fig=save_fig_into)
 
         # classify dirctly element-wise and show results
         print('Step 3: Classify the elements and clusters based on the classification given in config file')
         self.classification.classify_elementwise(beta_attenuation_varname='beta_att_clean',
                                                     linear_depol_ratio_varname='linear_depol_ratio_clean')
         if plot_results:
-            self.plot.show_classified_timeserie(classified_variable='classified_elements', ylims = range_limits)
+            save_fig_into = os.path.join(output_folder, 'classified_elements.jpg') if save_into_folder else False
+            self.plot.show_classified_timeserie(classified_variable='classified_elements', ylims = range_limits, save_fig=save_fig_into)
         return
         
     def debug_print(self, message, level=1):

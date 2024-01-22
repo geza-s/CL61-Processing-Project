@@ -103,10 +103,10 @@ class NoiseProcessor:
         # Save result into array and add relevant attributes
         var_name = f"{variable_name}_roll_{stat}"
         self.dataset[var_name] = rolling_result
-        if 'original_variable' in self.dataset['var_name'].attrs.keys():
+        if 'original_variable' in self.dataset[var_name].attrs.keys():
             self.dataset[var_name].attrs['long_name'] = f"({time_window_size},{range_window_size}) rolling {stat} {self.dataset[var_name].attrs['original_variable']}"
             self.dataset[var_name].attrs['name'] = f"(rolling {stat} {self.dataset[var_name].attrs['original_variable']}"
-        elif 'name' in self.dataset['var_name'].attrs.keys():
+        elif 'name' in self.dataset[var_name].attrs.keys():
             self.dataset[var_name].attrs['long_name'] = f"({time_window_size},{range_window_size}) rolling {stat} {self.dataset[var_name].attrs['name']}"
             self.dataset[var_name].attrs['name'] = f"(rolling {stat} {self.dataset[var_name].attrs['name']}"
         

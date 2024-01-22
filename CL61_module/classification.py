@@ -162,10 +162,8 @@ class CL61Classifier:
 
         if plot_result:
             fig, axes = plt.subplots(1, 2, figsize=(15, 5), width_ratios=[1, 2])
-            fig, axes[0] = visualize_classification_featurespace_2D(feature1_name='log10_beta_attenuation',
-                                                                    feature1_flatten=cleaned_feature_matrix[:, 0],
-                                                                    feature2_name='linear_depolarisation_ratio',
-                                                                    feature2_flatten=cleaned_feature_matrix[:, 1],
+            fig, axes[0] = visualize_classification_featurespace_2D(log10_beta_att_flatten=cleaned_feature_matrix[:, 0],
+                                                                    linear_depol_ratio_flatten=cleaned_feature_matrix[:, 1],
                                                                     cluster_labels_flatten=cluster_labels,
                                                                     fig=fig,
                                                                     plot_cbar=False,
@@ -190,7 +188,7 @@ class CL61Classifier:
         self.dataset[new_var].attrs['name'] = 'K-mean clusters'
         self.dataset[new_var].attrs['description'] = f'{cluster_N} K-mean clusters based on the following variables as features: {variable_as_features}'
 
-        return 
+        return fig, axes
 
     def dbscan_clustering(self, variable_as_features=['beta_att', 'linear_depol_ratio', 'range'],
                             transforms = ['log', 'lin', 'lin'],
@@ -288,7 +286,7 @@ class CL61Classifier:
                     
             plt.show()
         
-        return
+        return fig, axes
 
     def classify_clusters(self,
                             cluster_variable='kmean_clusters',
