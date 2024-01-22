@@ -16,39 +16,34 @@ from datetime import datetime
 from matplotlib import pyplot as plt
 import cmcrameri.cm as cmc  # batlow colourmap
 
-# Signal processing (check if necessary)
-#from scipy import signal
-#from scipy.interpolate import BSpline
-
-# Other (to check if necessary)
-#import dask
+# Other
 from tqdm import tqdm
-#import seaborn as sns
 
 # Functions implemented for data processing and visualization
-from CL61_module import visualization
-from CL61_module import process
-from CL61_module import classification
-
+from .visualization import PlotCL61
+from .process import NoiseProcessor
+from .classification import CL61Classifier
 from .utils import load_config, generate_output_folder_name
 
+# For nice graphics
 plt.style.use('bmh')
 COLOR_MAP_NAME = 'cmc.batlow'
 COLOR_MAP = cmc.batlow  # type: ignore
 
+
 class CL61Processor:
     def __enter__(self):
         return
-    
+
     def __init__(self, folder_path,
                  start_datetime=None, end_datetime=None,
                  specific_filename=None,
                  config_path='config_classification.json',
-                 load_to_memory = False,
-                 transfer_files_locally = False,
-                 parallel_computing = False,
-                 dataset = None,
-                 verbose = 1):
+                 load_to_memory=False,
+                 transfer_files_locally=False,
+                 parallel_computing=False,
+                 dataset=None,
+                 verbose=1):
         """
         Initialize CL61Processor instance.
 
@@ -69,15 +64,18 @@ class CL61Processor:
         """
         # verbose parameter for debugging
         if not isinstance(verbose, int):
-                raise ValueError("The 'verbose' parameter must be an integer.")
+            raise ValueError("The 'verbose' parameter must be an integer.")
         else:
             self.verbose = verbose
-        
+
+        self.debug_print("Initialization...")
+
         # Folder paths
         self.folder_path = folder_path
         self.module_dir = os.path.dirname(__file__)
-        
+
         # Getting the temporary folder
+        self.local_files_transfer = bool(transfer_files_locally)
         self.temp_dir = os.path.join(self.module_dir, "temp")
         os.makedirs(self.temp_dir, exist_ok=True)
         if transfer_files_locally:
@@ -96,18 +94,18 @@ class CL61Processor:
         self.files_in_time_periods = None
         if specific_filename is None:
             while not os.path.isdir(folder_path):
-                folder_path = input('Folder path not valid; please enter a valid path to data folder: ')
-                
+                folder_path = input('- Folder path not valid; please enter a valid path to data folder: ')
+
             self.debug_print("- Getting filenames in data folder ... ")
             self.files_in_time_periods = self.get_filepaths_with_timestamps(start_datetime, end_datetime)
             self.debug_print(self.files_in_time_periods['filenames'], level=3)
-            
+
         # Initialize dataset based on conditions set
         if self.dataset is None:
             self.debug_print((f"- Loading dataset from files with parameter: \n \t load_to_memory={load_to_memory},"
-                             f"transfer_files_locally={transfer_files_locally}, parallel_computing = {parallel_computing}"))
+                        f"transfer_files_locally={transfer_files_locally}, parallel_computing={parallel_computing}"))
             self._load_data(specific_filename,
-                            load_to_memory = load_to_memory,
+                            load_to_memory=load_to_memory,
                             transfer_files_locally=transfer_files_locally,
                             parallel_computing=parallel_computing)
 
@@ -115,18 +113,18 @@ class CL61Processor:
         self._set_metadata()
 
         # Takes the major subclasses
-        self.plot = visualization.PlotCL61(dataset = self.dataset, parent = self)
-        self.process_noise = process.NoiseProcessor(parent = self)
-        self.classification = classification.CL61Classifier(parent = self)
+        self.plot = PlotCL61(dataset=self.dataset, parent=self)
+        self.process_noise = NoiseProcessor(parent=self)
+        self.classification = CL61Classifier(parent=self)
 
-        self.debug_print(message = "Module initialization completed !", level=1)
-        return 
+        self.debug_print(message="... module initialization completed !", level=1)
+        return
 
     def _load_data(self, specific_filename, load_to_memory, transfer_files_locally, parallel_computing):
-        '''
+        """
         Manage different data loading situation:
         a) from specific file, b) from folder with original files, c) with temporary transfer to local folder
-        '''
+        """
         if specific_filename:
             self.debug_print(f"load data from specific filne {specific_filename}")
             self.load_specific_data(specific_filename)
@@ -134,9 +132,9 @@ class CL61Processor:
             if transfer_files_locally:
                 self._transfer_files_locally(self.files_in_time_periods['filenames'])
                 # update folder and filepaths
-                self.folder_path = self.temp_dir  
+                self.folder_path = self.temp_dir
                 self.files_in_time_periods = self.get_filepaths_with_timestamps(period_start=self.period_start,
-                                                                                 period_end=self.period_end)
+                                                                                period_end=self.period_end)
             # Opening all files
             self.dataset = self.load_netcdf4_data_in_timeperiod(parallel_computing=parallel_computing,
                                                                 load_to_memory=load_to_memory)
@@ -148,6 +146,7 @@ class CL61Processor:
 
         Args:
             file_names_to_copy (list): list of filenames in source folder to transfer
+            temp_dir (str) : path refering to specific temporary folder
         """
         # Define source and end folders
         data_folder = self.folder_path
@@ -160,34 +159,34 @@ class CL61Processor:
             dest_path = os.path.join(temp_dir, file_name)
             self.debug_print(f'Copying file from {source_path} to {dest_path}', level=3)
             try:
-                shutil.copy(src = source_path, dst = dest_path)
+                shutil.copy(src=source_path, dst=dest_path)
             except shutil.SameFileError:
                 print(f"File '{file_name}' already exists at destination. Skipping copy.")
                 continue
             except FileNotFoundError:
                 print(f"Error copying '{file_name}': Source file not found: {source_path}")
-                
+
         return temp_dir
 
     def _set_metadata(self):
+        """ Changes the backscatter attenuation and linear depolarisation ratio metadata to have more concise name"""
         self.dataset['beta_att'].attrs['name'] = 'attenuated backscatter coefficient'
         self.dataset['linear_depol_ratio'].attrs['name'] = 'linear depolarisation ratio'
 
     def load_specific_data(self, specific_filename):
-        '''
+        """
         Loads specific netcdf data as whole dataset
         args:
-            specific_filename: filename of the 
-        '''
+            specific_filename: filename of the
+        """
         specific_filepath = os.path.join(self.folder_path, specific_filename)
         self.dataset = xr.open_dataset(specific_filepath)
         self.period_start = self.dataset['time'][0].values
         self.period_end = self.dataset['time'][-1].values
         self.files_in_data_folder = None
         return
-    
 
-    def get_filepaths_with_timestamps(self, period_start = None, period_end=None):
+    def get_filepaths_with_timestamps(self, period_start=None, period_end=None):
         """
         Gets all netCDF file paths in the given folder.
         Saves the results into a DataFrame in variable self.files_in_data_folder.
@@ -206,7 +205,8 @@ class CL61Processor:
         timestamps = [pd.to_datetime(path[-18:-3], format='%Y%m%d_%H%M%S') for path in filepaths]
 
         self.debug_print('Creating associated dataframe', level=2)
-        self.files_in_data_folder = pd.DataFrame({'filenames': filenames, 'file_name_path': filepaths}, index=timestamps)
+        self.files_in_data_folder = pd.DataFrame({'filenames': filenames, 'file_name_path': filepaths},
+                                                 index=timestamps)
         self.files_in_data_folder.sort_index(inplace=True)
 
         initial_time_index = self.files_in_data_folder.index[0]
@@ -223,48 +223,48 @@ class CL61Processor:
 
         if period_start < initial_time_index:
             if period_end < initial_time_index:
-                raise(ValueError(f"Period start and period end are found outside of range of files: {initial_time_index} to {end_time_index}"))
+                raise (ValueError(
+                    f"Period start and period end are found outside of range of files: {initial_time_index} to {end_time_index}"))
             else:
                 period_start = initial_time_index
 
         if period_end > end_time_index:
-            if period_start> end_time_index:
-                raise(ValueError(f"Period start and period end are found outside of range of file: {initial_time_index} to {end_time_index}"))
+            if period_start > end_time_index:
+                raise (ValueError(
+                    f"Period start and period end are found outside of range of file: {initial_time_index} to {end_time_index}"))
             else:
                 period_end = end_time_index
 
-
         # Select all rows between the two dates
-        selected_rows = self.files_in_data_folder.loc[(self.files_in_data_folder.index >= period_start) 
-                                                   & (self.files_in_data_folder.index <= period_end)]
+        selected_rows = self.files_in_data_folder.loc[(self.files_in_data_folder.index >= period_start)
+                                                      & (self.files_in_data_folder.index <= period_end)]
 
         return selected_rows
 
-
-    def load_netcdf4_data_in_timeperiod(self, parallel_computing = False, load_to_memory = False):
+    def load_netcdf4_data_in_timeperiod(self, parallel_computing=False, load_to_memory=False):
         """
         Load the netcdf4 files at given folder location and inside the given period.
 
-        Args:
-            parrallel_computing (bool, optional): If dask is installed, open_mfdataset can increase in some case performance. Defaults to False.
+        Args: parallel_computing (bool, optional): If dask is installed, open_mfdataset can increase in some case
+        performance. Defaults to False.
 
         Returns:
             _type_: _description_
         """
         # Select all files in folder referering to wished period
         selected_files = self.files_in_time_periods['file_name_path']
-        if len(selected_files)==0:
+        if len(selected_files) == 0:
             raise ValueError("Error, no related files found in given folder for given time range")
-        
+
         if parallel_computing:
             self.debug_print(f"Opening all in one with xr open_mfdataset from file {selected_files[0]}", level=2)
             dataset = xr.open_mfdataset(selected_files,
-                                     chunks={'time': 'auto'},
-                                     engine = "netcdf4",
-                                     parallel = True)
+                                        chunks={'time': 'auto'},
+                                        engine="netcdf4",
+                                        parallel=True)
         else:
             self.debug_print(f"Opening {len(selected_files)} files from given folder", level=2)
-            dataset = None # variable to store dataset
+            dataset = None  # variable to store dataset
             for filepath_i in tqdm(selected_files, total=len(selected_files)):
                 # Open file alone to xarray
                 row_array = xr.open_dataset(filepath_i, chunks='auto')
@@ -273,14 +273,13 @@ class CL61Processor:
                     dataset = row_array
                 else:
                     dataset = xr.concat([dataset, row_array], dim='time')
-            
-        
+
+        # Loading all data into memory, may improve performance
         if load_to_memory:
             self.debug_print('Loading dataset into memory', level=2)
             return dataset.load()
-        else :
+        else:
             return dataset
-        
 
     def get_subset(self, start_time, end_time):
         """
@@ -305,14 +304,23 @@ class CL61Processor:
         subset_processor = CL61Processor(self.folder_path,
                                          start_datetime=start_time,
                                          end_datetime=end_time,
-                                         config_path=self.config_filepath,
+                                         config_path=self.config_path,
                                          dataset=subset)
 
         return subset_processor
 
-    def auto_process(self, plot_results = True, clustering_method = 'kmean', range_limits = [0,10000], save_into_folder = None):
-        ''' Runs automated pipeline based on default values'''
-        
+    def auto_process(self, plot_results=True, range_limits=[0, 10000],
+                     save_into_folder=None,
+                     clustering_method='kmean'):
+        """
+        Automatically process the dataset using KMeans clustering method and classification parameters set in
+        config file. If save_into_folder is specified, it will save the results to folder given by save_into_folder.
+        :param plot_results: Whether to plot the results or not
+        :param range_limits: Limits in range direction for plots. Default values are [0, 10000]
+        :param save_into_folder: If results should be saved in folder. If boolean True, saves into output. IF str than it saves into folder given by
+         save_into_folder.
+        :param clustering_method: Default and suggested : 'kmean'. Can also perform 'dbscan' but has poor results.
+        """
         if save_into_folder:
             if os.path.isdir(save_into_folder):
                 output_folder = save_into_folder
@@ -320,37 +328,37 @@ class CL61Processor:
                 specific_name = generate_output_folder_name(dataset=self.dataset)
                 output_folder = os.path.join('../Outputs', specific_name)
                 os.makedirs(output_folder)
-            
-            
+
             self.debug_print(f"Saving files into {output_folder}")
-        
-        # Show timeserie before noise removal
+
+        # Show time serie before noise removal
         if plot_results:
             save_fig_into = os.path.join(output_folder, 'timeserie.jpg') if save_into_folder else False
             self.plot.show_timeserie(range_limits=range_limits,
-                                     cbar_labels = ['$Log_{10}$ attenuated backscatter \n coefficient [$m^{-1}~sr^{-1}$]',
-                                                    'Linear depolarization ratio'],
+                                     cbar_labels=['$Log_{10}$ attenuated backscatter \n coefficient [$m^{-1}~sr^{-1}$]',
+                                                  'Linear depolarization ratio'],
                                      save_fig=save_fig_into)
 
-        # Remove noise and show results afterwards
+        # Remove noise and show results afterward
         print("Step 1: applying noise removal process")
         self.process_noise.mask_noise()
-        
+
         if plot_results:
             save_fig_into = os.path.join(output_folder, 'denoised_timeserie.jpg') if save_into_folder else False
             self.plot.show_timeserie(variable_names=['beta_att_clean', 'linear_depol_ratio_clean'],
                                      range_limits=range_limits,
-                                     cbar_labels = ['$Log_{10}$ attenuated backscatter \n coefficient (filtered) \n [$m^{-1}~sr^{-1}$]',
-                                                    'Linear depolarization ratio \n (filtered)'],
+                                     cbar_labels=[
+                                         '$Log_{10}$ attenuated backscatter \n coefficient (filtered)'
+                                         '\n [$m^{-1}~sr^{-1}$]',
+                                         'Linear depolarization ratio \n (filtered)'],
                                      save_fig=save_fig_into)
-        
-        # Plot cloud base heights
+
+            # Plot cloud base heights
             save_fig_into = os.path.join(output_folder, 'cloud_heights.jpg') if save_into_folder else False
             self.plot.show_cloud_base_heights(underlying_variable='beta_att_clean',
-                                            range_limits=range_limits,
-                                            save_fig=save_fig_into)
-        
-        
+                                              range_limits=range_limits,
+                                              save_fig=save_fig_into)
+
         # Cluster data then classify and show results
         print(f"step 2: cluster data with {clustering_method} method")
         if clustering_method == 'kmean':
@@ -363,45 +371,58 @@ class CL61Processor:
             self.classification.dbscan_clustering(dbscan_eps=0.3, plot_result=plot_results, plot_range=range_limits)
             self.classification.classify_clusters(cluster_variable='dbscan_clusters')
         else:
-            raise(ValueError(f'clustering_method should be of {"kmean" or "dbscan"}; given value {clustering_method} not supported'))
-        
+            raise (ValueError(
+                f'clustering_method should be of {"kmean" or "dbscan"}; given value {clustering_method} not supported'))
+
         if plot_results:
             save_fig_into = os.path.join(output_folder, 'classified_clusters.jpg') if save_into_folder else False
-            self.plot.show_classified_timeserie(classified_variable='classified_clusters', ylims = range_limits,
+            self.plot.show_classified_timeserie(classified_variable='classified_clusters', ylims=range_limits,
                                                 save_fig=save_fig_into)
 
         # classify dirctly element-wise and show results
         print('Step 3: Classify the elements and clusters based on the classification given in config file')
         self.classification.classify_elementwise(beta_attenuation_varname='beta_att_clean',
-                                                    linear_depol_ratio_varname='linear_depol_ratio_clean')
+                                                 linear_depol_ratio_varname='linear_depol_ratio_clean')
         if plot_results:
             save_fig_into = os.path.join(output_folder, 'classified_elements.jpg') if save_into_folder else False
-            self.plot.show_classified_timeserie(classified_variable='classified_elements', ylims = range_limits, save_fig=save_fig_into)
+            self.plot.show_classified_timeserie(classified_variable='classified_elements', ylims=range_limits,
+                                                save_fig=save_fig_into)
         return
-        
+
     def debug_print(self, message, level=1):
         """Print debug messages based on the verbose level."""
         if self.verbose >= level:
             print(message)
         return
-    
-    def close(self):
-        '''Apply exit with closing xarray and removing temporary folder'''
-        return self.__exit__()
+
+    def remove_temp_folder(self):
+        """Removing temporary folder"""
+        if self.local_files_transfer:
+            confirmation = input(f'Are you sure you want to remove the whole folder {self.temp_dir}? Type "yes" to confirm: ')
+            if confirmation.lower() == 'yes':
+                try:
+                    shutil.rmtree(self.temp_dir)
+                    print(f'Temporary folder {self.temp_dir} removed successfully.')
+                except Exception as e:
+                    print(f'Error removing temporary folder: {e}')
+            else:
+                print(f'Temporary folder {self.temp_dir} not removed.')
+
+        return
 
     def __exit__(self):
         # Close dataset and remove temporary folder
         if isinstance(self.dataset, xr.Dataset):
             self.dataset.close()
-        #shutil.rmtree(self.temp_dir)
+        # shutil.rmtree(self.temp_dir)
 
 
-# Other Functions to run script directly from this file : -------------------------------------------------------------------
+# Other Functions to run script directly by calling this file : ----------------------------------------------
 
 def parse_arguments():
-    '''
+    """
     To be able to modify entry directly from command prompt
-    '''
+    """
     parser = argparse.ArgumentParser(description='Process data using CL61Processor.')
     parser.add_argument('--data-folder', type=str,
                         default=r"X:\common\03_Experimental\Instruments\EERL_instruments\5. Remote sensing\CL61_Ceilometer\Data",
@@ -410,17 +431,30 @@ def parse_arguments():
                         help='Start date and time in the format YYYY-MM-DD HH:mm:ss')
     parser.add_argument('--end-time', type=str, default='2023-02-23 00:00:00',
                         help='End date and time in the format YYYY-MM-DD HH:mm:ss')
-    parser.add_argument('--range', type=list, default = [0,15000],
+    parser.add_argument('--range', type=list, default=[0, 15000],
                         help='List of measurement range (height) limits [min, max] for plots; can go from 0 to 15000 m.')
     return parser.parse_args()
 
+
 def validate_data_folder(data_folder):
+    """
+    Returns True if folder is a valid path.
+    :param data_folder: path to folder to check
+    :return: True if folder is a valid
+    """
     while not os.path.exists(data_folder):
         print(f"Data folder '{data_folder}' does not exist.")
         data_folder = input("Enter a valid path to the data folder: ")
     return data_folder
 
+
 def validate_datetime(datetime_str, datetime_name):
+    """
+    Returns True if datetime string is a valid datetime.
+    :param datetime_str:
+    :param datetime_name:
+    :return:
+    """
     try:
         # Perform additional validation if needed
         # For now, we're just checking the format
@@ -430,6 +464,7 @@ def validate_datetime(datetime_str, datetime_name):
         datetime_str = input(f"Enter a valid {datetime_name}: ")
         return validate_datetime(datetime_str, datetime_name)
     return datetime_str
+
 
 if __name__ == "__main__":
     args = parse_arguments()
