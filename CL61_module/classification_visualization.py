@@ -14,7 +14,7 @@ import cmcrameri.cm as cmc
 from scipy.stats import mode  # for hexbins better plotting
 
 # Extra function
-from utils import filename_to_save
+from CL61_module.utils import filename_to_save
 
 # SET UP
 COLOR_MAP_NAME = 'cmc.batlow'

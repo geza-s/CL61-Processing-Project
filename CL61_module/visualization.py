@@ -14,8 +14,8 @@ import seaborn as sns
 import cmcrameri.cm as cmc
 
 # ! Adding other functions related to the module
-from classification_visualization import *
-from utils import filename_to_save
+from CL61_module.classification_visualization import *
+from CL61_module.utils import filename_to_save
 
 COLOR_MAP_NAME = 'cmc.batlow'
 COLOR_MAP = cmc.batlow

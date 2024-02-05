@@ -20,10 +20,10 @@ import cmcrameri.cm as cmc  # batlow colourmap
 from tqdm import tqdm
 
 # Functions implemented for data processing and visualization
-from visualization import PlotCL61
-from process import NoiseProcessor
-from classification import CL61Classifier
-from utils import load_config, generate_output_folder_name
+from CL61_module.visualization import PlotCL61
+from CL61_module.process import NoiseProcessor
+from CL61_module.classification import CL61Classifier
+from CL61_module.utils import load_config, generate_output_folder_name
 
 # For nice graphics
 plt.style.use('bmh')

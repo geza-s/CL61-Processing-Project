@@ -13,10 +13,10 @@ import matplotlib.pyplot as plt
 import cmcrameri.cm as cmc
 
 # Import associated functions
-from classification_visualization import (visualize_classification_featurespace_2D,
-                                           visualize_cluster_results,
-                                           plot_classified_timeserie)
-from utils import load_config, filename_to_save
+from CL61_module.classification_visualization import (visualize_classification_featurespace_2D,
+                                                        visualize_cluster_results,
+                                                        plot_classified_timeserie)
+from CL61_module.utils import load_config, filename_to_save
 
 # global variables
 COLOR_MAP_NAME = 'cmc.batlow'
