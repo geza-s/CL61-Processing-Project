@@ -13,8 +13,9 @@ import seaborn as sns
 # batlow colourmap
 import cmcrameri.cm as cmc
 
-from .classification_visualization import *
-from .utils import filename_to_save, load_config
+# ! Adding other functions related to the module
+from classification_visualization import *
+from utils import filename_to_save
 
 COLOR_MAP_NAME = 'cmc.batlow'
 COLOR_MAP = cmc.batlow
@@ -86,7 +87,7 @@ class PlotCL61:
         # Number of variables
         L = len(variable_names)
 
-        # Plot 
+        # Plot
         if axs is None:
             fig, axs = plt.subplots(L, 1, sharex=True, figsize=(12, L * 3 + 1))
         elif fig is None:
@@ -133,6 +134,8 @@ class PlotCL61:
             print(f'saved figure to {filepath}')
             plt.savefig(filepath, bbox_inches='tight', dpi=fig_dpi)
 
+        #plt.show()
+        
         return axs
 
     def show_cloud_base_heights(self, range_limits=[0, 15000], underlying_variable='beta_att',
@@ -173,6 +176,9 @@ class PlotCL61:
         # Create plot if not given
         if ax is None:
             fig, ax = plt.subplots(figsize=figsize)
+            set_figure = True
+        else:
+            set_figure = False
 
         # Plot cloud base heights
         cloud_plot = subset['cloud_base_heights'].plot.scatter(ax=ax, marker='_',
@@ -196,8 +202,9 @@ class PlotCL61:
         if save_fig:
             plt.savefig(filename_to_save(self.dataset, save_fig, suffix=f"cloud_bases"), dpi=300)
 
-        plt.show()
-
+        #if set_figure:
+        #    plt.show()
+        
         return ax
 
     def histogram_1d(self, variable='beta_att_clean', classes_variable=None,
@@ -273,6 +280,8 @@ class PlotCL61:
         if save_figure:
             plt.savefig(filename_to_save(dataset, save_figure, suffix=f"hist_{variable_1}"), dpi=300)
 
+        #plt.show()
+        
         return fig, ax
 
     def histogram_2d(self,
@@ -348,7 +357,9 @@ class PlotCL61:
             plt.savefig(
                 filename_to_save(dataset, save_figure, suffix=f"hist_{variable_1}_{variable_2}"), dpi=300
             )
-
+        
+        #plt.show()
+        
         return g
 
     def vertical_profile(self, time_period=None,
@@ -448,10 +459,6 @@ class PlotCL61:
             print(f'Saved figure to {filepath}')
             plt.savefig(filepath, bbox_inches='tight', dpi=fig_dpi)
 
-        # Show the plot
-        if ax == None:
-            plt.show()
-
         return ax, ax2
 
     def compare_profiles(self, time_period=None, comparison='variable',
@@ -512,7 +519,7 @@ class PlotCL61:
             print(f'Saved element to {filepath}')
             plt.savefig(filepath, bbox_inches='tight', dpi=fig_dpi)
 
-        plt.show()
+        #plt.show()
 
         return
 
@@ -583,9 +590,8 @@ class PlotCL61:
             print(f'Saved element to {filepath}')
             plt.savefig(filepath, bbox_inches='tight', dpi=300)
 
-        # Show the plot
-        plt.show()
-
+        #plt.show()
+        
         return fig, ax
 
 

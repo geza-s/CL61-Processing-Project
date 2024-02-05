@@ -20,10 +20,10 @@ import cmcrameri.cm as cmc  # batlow colourmap
 from tqdm import tqdm
 
 # Functions implemented for data processing and visualization
-from .visualization import PlotCL61
-from .process import NoiseProcessor
-from .classification import CL61Classifier
-from .utils import load_config, generate_output_folder_name
+from visualization import PlotCL61
+from process import NoiseProcessor
+from classification import CL61Classifier
+from utils import load_config, generate_output_folder_name
 
 # For nice graphics
 plt.style.use('bmh')
@@ -102,7 +102,7 @@ class CL61Processor:
 
         # Initialize dataset based on conditions set
         if self.dataset is None:
-            self.debug_print((f"- Loading dataset from files with parameter: \n \t load_to_memory={load_to_memory},"
+            self.debug_print((f"- Loading dataset from files with parameter: \n \t load_to_memory={load_to_memory}, "
                         f"transfer_files_locally={transfer_files_locally}, parallel_computing={parallel_computing}"))
             self._load_data(specific_filename,
                             load_to_memory=load_to_memory,
@@ -314,13 +314,25 @@ class CL61Processor:
                      clustering_method='kmean'):
         """
         Automatically process the dataset using KMeans clustering method and classification parameters set in
-        config file. If save_into_folder is specified, it will save the results to folder given by save_into_folder.
-        :param plot_results: Whether to plot the results or not
-        :param range_limits: Limits in range direction for plots. Default values are [0, 10000]
-        :param save_into_folder: If results should be saved in folder. If boolean True, saves into output. IF str than it saves into folder given by
-         save_into_folder.
-        :param clustering_method: Default and suggested : 'kmean'. Can also perform 'dbscan' but has poor results.
+        config file. If save_into_folder is specified, it will save the results to the folder given by save_into_folder.
+
+        Args:
+        ----------
+        plot_results : bool, optional
+            Whether to plot the results or not. Default is True.
+        range_limits : list, optional
+            Limits in range direction for plots. Default values are [0, 10000].
+        save_into_folder : bool or str, optional
+            If results should be saved in a folder. If boolean True, saves into the output. If a string, then it saves into
+            the folder given by save_into_folder.
+        clustering_method : str, optional
+            Default and suggested clustering method is 'kmean'. Can also perform 'dbscan' but has poor results.
+
+        Returns:
+        -------
+        None
         """
+        
         if save_into_folder:
             if os.path.isdir(save_into_folder):
                 output_folder = save_into_folder
@@ -377,7 +389,8 @@ class CL61Processor:
         if plot_results:
             save_fig_into = os.path.join(output_folder, 'classified_clusters.jpg') if save_into_folder else False
             self.plot.show_classified_timeserie(classified_variable='classified_clusters', ylims=range_limits,
-                                                save_fig=save_fig_into)
+                                                save_fig=save_fig_into,
+                                                title = 'cluster-wise classification')
 
         # classify dirctly element-wise and show results
         print('Step 3: Classify the elements and clusters based on the classification given in config file')
@@ -386,7 +399,18 @@ class CL61Processor:
         if plot_results:
             save_fig_into = os.path.join(output_folder, 'classified_elements.jpg') if save_into_folder else False
             self.plot.show_classified_timeserie(classified_variable='classified_elements', ylims=range_limits,
-                                                save_fig=save_fig_into)
+                                                save_fig=save_fig_into,
+                                                title = 'element-wise classification')
+        
+        self.debug_print("Step 4: Ending...")
+        
+        # Remove temporary folder if needed:
+        if self.local_files_transfer:
+            self.debug_print("removing temporary folder...")
+            self.remove_temp_folder()    
+
+        self.debug_print("... Automated process finished successfully !")
+        plt.show()
         return
 
     def debug_print(self, message, level=1):
@@ -398,7 +422,7 @@ class CL61Processor:
     def remove_temp_folder(self):
         """Removing temporary folder"""
         if self.local_files_transfer:
-            confirmation = input(f'Are you sure you want to remove the whole folder {self.temp_dir}? Type "yes" to confirm: ')
+            confirmation = input(f'Are you sure you want to remove the whole temporary folder {self.temp_dir}? Type "yes" to confirm: ')
             if confirmation.lower() == 'yes':
                 try:
                     shutil.rmtree(self.temp_dir)
@@ -431,16 +455,29 @@ def parse_arguments():
                         help='Start date and time in the format YYYY-MM-DD HH:mm:ss')
     parser.add_argument('--end-time', type=str, default='2023-02-23 00:00:00',
                         help='End date and time in the format YYYY-MM-DD HH:mm:ss')
-    parser.add_argument('--range', type=list, default=[0, 15000],
-                        help='List of measurement range (height) limits [min, max] for plots; can go from 0 to 15000 m.')
+    parser.add_argument('--min-range', type=int, default=0,
+                        help='Minimum measurement range (height) for plots; default is 0.')
+    parser.add_argument('--max-range', type=int, default=15000,
+                        help='Maximum measurement range (height) for plots; default is 15000.')
+    
+    # Supplementary setings
+    parser.add_argument('--load-to-memory', action='store_true', default=False,
+                        help='Flag to indicate whether to load data into memory.')
+    parser.add_argument('--transfer-files-locally', action='store_true', default=False,
+                        help='Flag to indicate whether to transfer files locally.')
+    
     return parser.parse_args()
 
 
 def validate_data_folder(data_folder):
     """
     Returns True if folder is a valid path.
-    :param data_folder: path to folder to check
-    :return: True if folder is a valid
+    
+    Args:
+        data_folder: path to folder to check
+    
+    Returns:
+        True if folder is a valid
     """
     while not os.path.exists(data_folder):
         print(f"Data folder '{data_folder}' does not exist.")
@@ -450,14 +487,20 @@ def validate_data_folder(data_folder):
 
 def validate_datetime(datetime_str, datetime_name):
     """
-    Returns True if datetime string is a valid datetime.
-    :param datetime_str:
-    :param datetime_name:
-    :return:
+    Returns datetime if datetime string is a valid datetime.
+
+    Args:
+        datetime_str (str): datetime as a string
+        datetime_name (_type_): description of the datetime; what it is referring to. eg. 'start time' or 'end time'
+
+    Raises:
+        ValueError : if the datetime string is not valid and will ask prompt for new datetime
+    
+    Returns:
+        str: valid datetime string
     """
     try:
-        # Perform additional validation if needed
-        # For now, we're just checking the format
+        # Just checking the format
         datetime.strptime(datetime_str, '%Y-%m-%d %H:%M:%S')
     except ValueError:
         print(f"Invalid {datetime_name} format. Please use YYYY-MM-DD HH:mm:ss.")
@@ -467,6 +510,7 @@ def validate_datetime(datetime_str, datetime_name):
 
 
 if __name__ == "__main__":
+    # Gets arguments from parser
     args = parse_arguments()
 
     # Validate data folder
@@ -477,11 +521,14 @@ if __name__ == "__main__":
 
     # Validate end time
     args.end_time = validate_datetime(args.end_time, 'end time')
-
+    
     # Initialize CL61Processor
     cl61_processor = CL61Processor(folder_path=args.data_folder,
                                    start_datetime=args.start_time,
-                                   end_datetime=args.end_time)
+                                   end_datetime=args.end_time,
+                                   transfer_files_locally=args.transfer_files_locally,
+                                   load_to_memory=args.load_to_memory
+                                   )
 
     # Perform data processing
-    cl61_processor.auto_process(range_limits=args.range)
+    cl61_processor.auto_process(range_limits=[args.min_range, args.max_range])

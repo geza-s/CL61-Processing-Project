@@ -13,10 +13,10 @@ import matplotlib.pyplot as plt
 import cmcrameri.cm as cmc
 
 # Import associated functions
-from .classification_visualization import (visualize_classification_featurespace_2D,
+from classification_visualization import (visualize_classification_featurespace_2D,
                                            visualize_cluster_results,
                                            plot_classified_timeserie)
-from .utils import load_config, filename_to_save
+from utils import load_config, filename_to_save
 
 # global variables
 COLOR_MAP_NAME = 'cmc.batlow'
@@ -185,7 +185,7 @@ class CL61Classifier:
             if save_fig:
                 plt.savefig(filename_to_save(self.dataset, save_fig, suffix='KMean'))
 
-            plt.show()
+            #plt.show()
 
         # Save clustering results to the dataset
         new_var = self.cluster_result_var['KMEAN']
@@ -293,7 +293,7 @@ class CL61Classifier:
             if save_fig:
                 plt.savefig(filename_to_save(dataset, save_fig, suffix='DBScan'))
 
-            plt.show()
+            #plt.show()
 
         return fig, axes
 

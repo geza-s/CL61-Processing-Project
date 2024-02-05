@@ -227,7 +227,7 @@ def rolling_window_in_range_mask(dataset,
 
 def create_kernel(window_size):
     """
-    Create a diamon kernel to encompass all possible windows in which element (i,j) could be
+    Create a diamond kernel to encompass all possible windows in which element (i,j) could be
     """
     kernel = np.zeros(window_size, dtype=int)
     center_time, center_range = np.array(window_size) // 2
