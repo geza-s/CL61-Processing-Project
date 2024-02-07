@@ -73,9 +73,9 @@ To get started with this project, follow these steps:
 4. ### Data Analysis and Processing
     Two options are suggested:
 
-   a) Follow the proposed usage presented in the jupyter notebook scripts `main_analysis_server.ipynb` as example with data on server and `main_analysis_local.ipynb` for datasets stored localy. More example are given in the `tests/` directory.
+   a) Follow the proposed usage presented in the jupyter notebook scripts `main_analysis.ipynb` for dataset stored in local folder or on server. More usage examples are given in the `tests/` directory (see f.ex. `tests/main_paper_results.ipynb`)
 
-    The main use is with the following example:
+    The basic use is with the following example:
     ```python
     import CL61_module as mCL61
     start_data = '2023-02-22 00:00:00'
@@ -91,7 +91,7 @@ To get started with this project, follow these steps:
 
     ```
     - Use `load_to_memory=True` to improve processing time
-    - And  `transfer_files_locally=True` transfers files to a local temporary folder improving significantly the processing time
+    - And  `transfer_files_locally=True` transfers files to a local temporary folder improving significantly the processing time (to use when data is on server)
 
    b) (Shortcut) Use the module directly from command prompt as following:
 
