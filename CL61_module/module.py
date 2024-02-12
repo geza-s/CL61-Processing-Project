@@ -267,7 +267,7 @@ class CL61Processor:
             dataset = None  # variable to store dataset
             for filepath_i in tqdm(selected_files, total=len(selected_files)):
                 # Open file alone to xarray
-                row_array = xr.open_dataset(filepath_i, chunks='auto')
+                row_array = xr.open_dataset(filepath_i)
                 # Combine the datasets
                 if dataset is None:
                     dataset = row_array
