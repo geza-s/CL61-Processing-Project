@@ -2,7 +2,11 @@
 
 ## Overview
 
-This project is a master's student project aimed at analyzing and processing data collected from a Vaisala CL61 ceilometer. The project focuses on understanding and interpreting atmospheric data for various applications, such as weather monitoring, climate research, or environmental studies.
+This project is a master's student project aimed at analyzing and processing data collected from a Vaisala CL61 ceilometer. The project focuses on processing and interpreting ceilometer backscattering data to explore the potential of last-generation ceilometers to characterize atmospheric observations. This could potentially be beneficial for various applications, such as weather monitoring, climate research, or environmental studies.
+
+## Paper abstract
+
+  This semester's project aims to explore the potential of the Vaisala CL61 ceilometer with polarization capacity for characterizing atmospheric observations. To achieve this, a Python pipeline was developed to classify atmospheric targets. The noise was filtered out from the data, enabling an efficient application of K-means clustering. Each cluster was classified by fixing thresholds on attenuated backscatter and linear depolarization ratio. The results show differentiation between liquid and solid scattering targets as well as the identification of aerosol plumes, demonstrating the extended use of ceilometers through their polarization capabilities.
 
 ## Project Goals
 
