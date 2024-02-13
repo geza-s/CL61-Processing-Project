@@ -129,8 +129,39 @@ To get started with this project, follow these steps:
 
    This example will process data from the specified data folder, starting from the given start time to the end time, and within the specified height range.
 
+## Configuration
+This project relies on a configuration file (`CL61_module\config_classification.json`) to define thresholds for classification. You can customize the thresholds and classes by following the established structure and variable names:
+```json
+{
+    "classes": [
+      {
+        "class_id": 1,
+        "class_name": "Smoke/Pollution/Marine",
+        "beta_attenuation_range": [1e-6, 5e-6],
+        "linear_depolarisation_ratio_range": [0, 0.1],
+        "color": "#a9cac4"
+      },
+      ...
+    ]
+  }
+```
+N.B.: The `class_id` is the integer used to reference each data point/cluster to its related class. It shall be unique and is recommended to use all lower integers first but doesn't need to be sorted in the json.
 
+### Class Definitions
 
+- **`class_id` (integer):** An identifier used to reference each data point or cluster to its related class. Ensure uniqueness, and consider starting with lower integers for better organization.
+
+- **`class_name` (string):** A descriptive name for the class, such as "Smoke/Pollution/Marine."
+
+- **`beta_attenuation_range` (list of floats):** A range defining acceptable values for beta attenuation.
+
+- **`linear_depolarisation_ratio_range` (list of floats):** A range specifying acceptable values for linear depolarization ratio.
+
+- **`color` (string):** Hexadecimal color code used for visualization, e.g., "#a9cac4."
+
+_Note: It's recommended to use all lower integers for `class_id` initially, but the order does not need to be sorted in the JSON._
+
+Feel free to add more classes to the `classes` array based on your specific classification needs. Adjusting these parameters allows you to fine-tune the classification process according to your project requirements.
 
 ## Contributors
 
