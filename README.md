@@ -172,6 +172,7 @@ This project is licensed under the 3-Clause BSD License.
 
 
 ## Acknowledgments
+I would like to thank Prof. Julia Schmale and the whole EERL laboratory for providing the opportunity to work with exciting instruments and datasets from their campaigns in extreme environments. I particularly want to thank Benjamin Heutte who closely supervised my work throughout the semester.
 
-
+##
 For any questions or inquiries, please feel free to contact the project's contributor mentioned above.
