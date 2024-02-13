@@ -145,23 +145,22 @@ This project relies on a configuration file (`CL61_module\config_classification.
     ]
   }
 ```
-N.B.: The `class_id` is the integer used to reference each data point/cluster to its related class. It shall be unique and is recommended to use all lower integers first but doesn't need to be sorted in the json.
 
 ### Class Definitions
 
-- **`class_id` (integer):** An identifier used to reference each data point or cluster to its related class. Ensure uniqueness, and consider starting with lower integers for better organization.
+- **`class_id` (integer):** An identifier to reference each data point or cluster to its related class. It must be unique, and consider starting with lower integers for better plotting.
 
-- **`class_name` (string):** A descriptive name for the class, such as "Smoke/Pollution/Marine."
+- **`class_name` (string):** A descriptive name for the class (used in plots)
 
-- **`beta_attenuation_range` (list of floats):** A range defining acceptable values for beta attenuation.
+- **`beta_attenuation_range` (list of floats):** A non-overlapping range defining acceptable values for beta attenuation.
 
-- **`linear_depolarisation_ratio_range` (list of floats):** A range specifying acceptable values for linear depolarization ratio.
+- **`linear_depolarisation_ratio_range` (list of floats):** A non-overlapping range specifying acceptable values for linear depolarization ratio.
 
-- **`color` (string):** Hexadecimal color code used for visualization, e.g., "#a9cac4."
+- **`color` (string):** Color code used for visualization, e.g., "#a9cac4."
 
 _Note: It's recommended to use all lower integers for `class_id` initially, but the order does not need to be sorted in the JSON._
 
-Feel free to add more classes to the `classes` array based on your specific classification needs. Adjusting these parameters allows you to fine-tune the classification process according to your project requirements.
+Feel free to add more classes to the `classes` array based on your specific classification needs. Keep simply in mind that overlapping ranges are not managed here. Adjusting these parameters lets you fine-tune the classification process according to your specific requirements.
 
 ## Contributors
 
