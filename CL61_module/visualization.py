@@ -38,7 +38,8 @@ class PlotCL61:
                        range_limits=None,
                        log_scale=[True, False],
                        color_map=COLOR_MAP_NAME,
-                       cbar_labels=None,
+                       cbar_labels=['Attenuated Backscatter \n Coefficient [$m^{-1} sr^{-1}$]',
+                                    'Linear Depolarization Ratio'],
                        fig=None, axs=None,
                        save_fig=False,
                        fig_dpi=300):
@@ -74,7 +75,7 @@ class PlotCL61:
             ...                    color_map='viridis',
             ...                    cbar_labels=['Attenuated Backscatter Coefficient [$m^{-1} sr^{-1}$]',
             ...                                 'Linear Depolarization Ratio'],
-            ...                    save_fig=True, fig_dpi=400)
+            ...                    save_fig=False, fig_dpi=400)
         """
 
         # Slice data based on range
@@ -126,7 +127,7 @@ class PlotCL61:
                     cbar_labels = [cbar_labels]
                 cbar.set_label(cbar_labels[i])
 
-            ax.set_ylabel('range [m]')
+            ax.set_ylabel('Range [m]')
             ax.set_title('')
 
         if save_fig:
@@ -166,7 +167,7 @@ class PlotCL61:
 
         Example:
             >>> obj.show_cloud_base_heights(range_limits=[1000, 8000], underlying_variable='linear_depol_ratio',
-            ...                             colormap='viridis', save_fig=True, figsize=(10, 6))
+            ...                             colormap='viridis', save_fig=False, figsize=(10, 6))
 
         """
 
@@ -209,7 +210,8 @@ class PlotCL61:
 
     def histogram_1d(self, variable='beta_att_clean', classes_variable=None,
                      variable_logscale=True, count_log=False, colormap=COLOR_MAP,
-                     save_figure=True, fig=None, ax=None):
+                     save_figure=False,
+                     fig=None, ax=None):
         """
         Plot a 1D histogram for the specified variable in the dataset.
 
@@ -289,7 +291,7 @@ class PlotCL61:
                      variable_2='linear_depol_ratio_clean',
                      variable_logscales=[True, False],
                      count_log=True,
-                     save_figure=True,
+                     save_figure=False,
                      colormap=COLOR_MAP):
         """
         Plot a 2D histogram for the specified variables in the dataset.
@@ -466,7 +468,7 @@ class PlotCL61:
                          var_names_2=['beta_att_clean', 'linear_depol_ratio_clean'],
                          scales=['log', 'lin'],
                          range_limits=[0, 15000],
-                         save_fig=True,
+                         save_fig=False,
                          fig_dpi=400):
         '''
         Creates 2 subplots to compare side by side vertical profiles of beta attenuation and linear depolarisation ratio.
@@ -524,7 +526,8 @@ class PlotCL61:
         return
 
     def show_classified_timeserie(self, classified_variable='classified_clusters',
-                                  ylims=[0, 10000], fig=None, ax=None, save_fig=False, title=None):
+                                  ylims=[0, 10000], fig=None, ax=None,
+                                  save_fig=False, title=None):
         """
         Plots the classified array with IDs corresponding to class names as given in the config file.
 
@@ -545,7 +548,7 @@ class PlotCL61:
             The x-axis represents time, the y-axis represents range, and the colors represent the classified clusters.
 
         Example:
-            >>> obj.show_classified_timeserie(classified_variable='classified_clusters', ylims=[0, 12000], save_fig=True,
+            >>> obj.show_classified_timeserie(classified_variable='classified_clusters', ylims=[0, 12000], save_fig=False,
             >>>                                 title='Clustered Timeseries')
 
         """
@@ -594,6 +597,43 @@ class PlotCL61:
         
         return fig, ax
 
+    def show_cluster_timeserie(self, cluster_variable_name = 'kmean_clusters',
+                               ylims = [0, 15000],
+                               cmap = cmc.batlowS,
+                               title = None, 
+                               save_fig = False):
+        '''
+        '''
+        if cluster_variable_name not in self.dataset.data_vars:
+            raise ValueError(f'{cluster_variable_name} variable not found in dataset')
+        
+        fig, ax = plt.subplots(figsize=(10,5))
+
+        plot = ax.pcolormesh(self.dataset['time'], self.dataset['range'], self.dataset[cluster_variable_name].T,
+                        cmap=classification_cmap, vmin=0, vmax=num_categories, shading='nearest')
+        
+        # Add a color bar with discrete color labels
+        cbar = fig.colorbar(plot, cmap=cmap)
+
+        # Set labels for x and y axes
+        ax.set_ylim(ylims)
+        ax.set_xlabel('Time')
+        ax.set_ylabel('Range [m]')
+
+        # Set the title of the plot
+        if title:
+            ax.set_title(title)
+        # Rotate time labels (xticks)
+        ax.tick_params(axis='x', rotation=45, which='major')
+
+        if save_fig:
+            filepath = filename_to_save(
+                dataset=self.dataset,
+                save_name=save_fig,
+                suffix= cluster_variable_name
+            )
+            print(f'Saved element to {filepath}')
+            plt.savefig(filepath, bbox_inches='tight', dpi=300)
 
 # Utility functions ------------------------------------------------------------------------------
 

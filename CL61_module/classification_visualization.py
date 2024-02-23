@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 
 # Basic plots
+from matplotlib import figure, axes
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 from matplotlib.colors import ListedColormap
@@ -21,13 +22,39 @@ COLOR_MAP_NAME = 'cmc.batlow'
 COLOR_MAP = cmc.batlow  # type: ignore
 COLOR_CODES_BLUE_YEL = ['#03245C', '#D69444']
 
+GLASBEY_COLORS = [
+    "#0072B2", "#7F3C58", "#53777A", "#967177", "#F0B327", "#D7B5D8",
+    "#B7D9E2", "#D95B43", "#7a7f87", "#F7CA44", "#84A59D", "#A4727C",
+    "#2D626D", "#75B2F8", "#e4debc", "#E7BAE2"
+]
+
+
+def get_discrete_cmap(num_categories, cmap = None):
+    if cmap is None:
+        if num_categories<=len(GLASBEY_COLORS):
+            color_list = GLASBEY_COLORS[:num_categories]
+            discrete_cmap = ListedColormap(color_list)
+        else:
+            # Create a custom ListedColormap with the discrete colors
+            color_values = np.linspace(0, 1, num_categories)
+            discrete_colors = COLOR_MAP(color_values)
+            discrete_cmap = ListedColormap(discrete_colors)
+    else:
+        if isinstance(cmap, str):
+            cmap = plt.get_cmap(cmap)
+
+        # Create a custom ListedColormap with the discrete colors
+        color_values = np.linspace(0, 1, num_categories)
+        discrete_colors = cmap(color_values)
+        discrete_cmap = ListedColormap(discrete_colors)
+    return discrete_cmap
 
 def visualize_classification_featurespace_2D(log10_beta_att_flatten,
                                              linear_depol_ratio_flatten,
                                              cluster_labels_flatten,
-                                             fig=None, ax=None,
+                                             fig = None, ax = None,
                                              plot_cbar=True,
-                                             cmap=COLOR_MAP):
+                                             cmap=None):
     """
     Plots the classification results in the 2D feature space of log10 attenuated backscatter and linear depolarisation
     ratio.
@@ -59,21 +86,11 @@ def visualize_classification_featurespace_2D(log10_beta_att_flatten,
     else:
         set_figure = False
 
-    # Define the original colormap (e.g., 'viridis')
-    if isinstance(cmap, str):
-        cmap = plt.get_cmap(cmap)
-
-    # Define the number of discrete categories
+    # Info on clusters:
     num_categories = np.unique(df['cluster_labels']).size
-
-    # Create a list of evenly spaced values to sample the colormap
-    color_values = np.linspace(0, 1, num_categories)
-
-    # Sample the original colormap at the specified values
-    discrete_colors = cmap(color_values)
-
-    # Create a custom ListedColormap with the discrete colors
-    discrete_cmap = ListedColormap(discrete_colors)
+    print(num_categories)
+    # Define the original colormap
+    discrete_cmap = get_discrete_cmap(cmap = cmap, num_categories=num_categories)
 
     # Function choosing the most common value in bin (hexbin) for associated color
     def most_freq_value(a):
@@ -103,7 +120,7 @@ def visualize_cluster_results(dataset,
                               fig=None,
                               ax=None,
                               range_limits=[0, 5000],
-                              color_map=COLOR_MAP_NAME):
+                              color_map=None):
     """
     Visualize the clusters in a timeserie (2D: time x range).
 
@@ -125,16 +142,20 @@ def visualize_cluster_results(dataset,
     else:
         set_fig = False
 
+    # Get colormap for categories
+    discrete_cmap = get_discrete_cmap(cmap = color_map, num_categories=num_categories)
+
     # Create a colored mesh plot using the custom colormap
     bounds = np.arange(0, num_categories + 1)
-    norm = colors.BoundaryNorm(boundaries=bounds, ncolors=256)
+    norm = colors.BoundaryNorm(boundaries=bounds, ncolors=discrete_cmap.N)
     plot = ax.pcolormesh(dataset['time'], dataset['range'], original_shape_labels_array, norm=norm, shading='nearest',
-                         cmap=color_map)
+                         cmap=discrete_cmap)
 
     # Add a colorbar with discrete color labels
     # norm = colors.BoundaryNorm(boundaries=bounds, ncolors=256)
-    cbar = fig.colorbar(plot, ax=ax, cmap=color_map, ticks=range(num_categories))
-    cbar.set_ticklabels(range(num_categories))  # Set labels to category indices
+    #cbar = fig.colorbar(plot, ax=ax, cmap=color_map, ticks=range(num_categories))
+    cbar = fig.colorbar(plot, ax=ax)
+    #cbar.set_ticklabels(range(num_categories))  # Set labels to category indices
 
     # Set labels for x and y axes (if needed)
     ax.set_ylim(range_limits)

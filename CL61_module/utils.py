@@ -3,12 +3,12 @@ import json
 import os
 import numpy as np
 import pandas as pd
-
+from pathlib import Path
 
 def filename_to_save(dataset,
                      save_name,
                      suffix='other',
-                     output_folder='..\Outputs'):
+                     output_folder='Outputs'):
     """
     Generate a filename for saving a figure based on dataset information.
 
@@ -21,10 +21,16 @@ def filename_to_save(dataset,
     Returns:
     - filename: str, generated filename for saving the figure.
     """
+    output_path = Path(output_folder)
+    if not output_path.exists():
+        # creates directory only if doesnt exist
+        output_path.mkdir(parents=True, exist_ok=True)
+        print(f'Created a folder for ouputs at {output_path}')
+    
     if isinstance(save_name, str):
         if os.path.dirname(save_name) is None:
             # Only a filename 
-            return os.path.join(output_folder, save_name)
+            return output_path.joinpath(save_name)
         else:
             # already a directory + filename
             return save_name
@@ -34,7 +40,7 @@ def filename_to_save(dataset,
     else:
         # Determine the default filename based on the first datetime in the dataset
         default_filename = f"{dataset['time'][0].values.astype('datetime64[h]')}_{suffix}"
-        return os.path.join(output_folder, default_filename)
+        return output_path.joinpath(default_filename)
 
 def generate_output_folder_name(dataset):
     """
